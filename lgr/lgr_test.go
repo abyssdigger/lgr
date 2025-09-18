@@ -44,6 +44,11 @@ func TestLogger_AddOutputs(t *testing.T) {
 	if len(logger.outputs) != 3 || logger.outputs[2] != buf3 {
 		t.Errorf("Output buf3 should be added, nil ignored")
 	}
+	// Попытка добавить пустой список
+	logger.AddOutputs()
+	if len(logger.outputs) != 3 || logger.outputs[2] != buf3 {
+		t.Errorf("Empty list gas to be ignored")
+	}
 }
 
 func TestLogger_ClearOutputs(t *testing.T) {
@@ -88,6 +93,12 @@ func TestLogger_RemoveOutputs(t *testing.T) {
 	if len(logger.outputs) != 1 {
 		t.Errorf("RemoveOutputs(nil) should not remove anything")
 	}
+	// Удаление пустого списка
+	logger.AddOutputs(buf1)
+	logger.RemoveOutputs()
+	if len(logger.outputs) != 1 {
+		t.Errorf("RemoveOutputs() should not remove anything")
+	}
 }
 
 func TestLogger_Start(t *testing.T) {
@@ -128,6 +139,11 @@ func TestLogger_SetFallback(t *testing.T) {
 	logger := &Logger{}
 	buf := &bytes.Buffer{}
 	logger.SetFallback(buf)
+	logger.handleLogWriteError("fallback test")
+	if !bytes.Contains(buf.Bytes(), []byte("fallback test")) {
+		t.Error("SetFallback or handleLogWriteError failed")
+	}
+	logger.SetFallback(nil)
 	logger.handleLogWriteError("fallback test")
 	if !bytes.Contains(buf.Bytes(), []byte("fallback test")) {
 		t.Error("SetFallback or handleLogWriteError failed")
