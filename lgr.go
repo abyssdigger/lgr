@@ -8,14 +8,14 @@ import (
 	"time"
 )
 
-const LOG_BUFFFER_SIZE = 100
+const LOG_BUFFFER_SIZE = 10
 
-type ActivityState int8
+type LoggerState int8
 
 const (
-	STOPPED  ActivityState = 0
-	ACTIVE   ActivityState = 1
-	STOPPING ActivityState = -1
+	STOPPED  LoggerState = 0
+	ACTIVE   LoggerState = 1
+	STOPPING LoggerState = -1
 )
 
 type LogLevel uint8
@@ -36,10 +36,10 @@ type logMessage struct {
 type Logger struct {
 	outputs []io.Writer
 	errout  io.Writer
-	chanMsg chan logMessage
+	channel chan logMessage
 	statMtx sync.RWMutex
 	waitEnd sync.WaitGroup
-	state   ActivityState
+	state   LoggerState
 	level   LogLevel
 }
 
@@ -63,11 +63,23 @@ func (l *Logger) Log(level LogLevel, s string) (err error) {
 	if level <= l.level {
 		l.statMtx.RLock()
 		if l.IsActive() {
-			l.chanMsg <- logMessage{s}
+			l.channel <- logMessage{s}
 		}
 		l.statMtx.RUnlock()
 	}
 	return err
+}
+
+func (l *Logger) setState(newstate LoggerState) {
+	if l.state != newstate {
+		l.statMtx.Lock()
+		l.state = newstate
+		l.statMtx.Unlock()
+	}
+}
+
+func (l *Logger) IsActive() bool {
+	return l.state == ACTIVE
 }
 
 func (l *Logger) Start() error {
@@ -76,22 +88,16 @@ func (l *Logger) Start() error {
 	if l.IsActive() {
 		return fmt.Errorf("logger is not stopped")
 	}
-	l.chanMsg = make(chan logMessage, LOG_BUFFFER_SIZE)
+	l.channel = make(chan logMessage, LOG_BUFFFER_SIZE)
 	l.state = ACTIVE
 	l.waitEnd.Go(func() { l.procced() })
 	print("Logger started\n")
 	return nil
 }
 
-func (l *Logger) IsActive() bool {
-	return l.state == ACTIVE
-}
-
 func (l *Logger) Stop() {
-	l.statMtx.Lock()
-	defer l.statMtx.Unlock()
-	l.state = STOPPING
-	close(l.chanMsg)
+	l.setState(STOPPING)
+	close(l.channel)
 }
 
 func (l *Logger) Wait() {
@@ -106,14 +112,13 @@ func (l *Logger) procced() {
 		print("EXIT")
 	}()
 	for {
-		msg, ok := <-l.chanMsg
+		msg, ok := <-l.channel
 		if !ok {
-			l.state = STOPPED
-			fmt.Fprintf(l.errout, "Message channel is closed\n")
+			l.setState(STOPPED)
 			return
 		}
 		n, err := io.MultiWriter(l.outputs...).Write([]byte(msg.message))
-		time.Sleep(time.Second)
+		time.Sleep(time.Millisecond * 100) // Simulate some delay
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "error writing log message (%d bytes written): %v\n", n, err)
 		}
@@ -129,6 +134,8 @@ func main() {
 			err := logger.Log(DEBUG, "LOG! #"+fmt.Sprint(i+1)+"\n")
 			if err != nil {
 				fmt.Println("Error:", err)
+			} else {
+				fmt.Println("Logged #", i+1)
 			}
 		}
 		//logger.chanCmd <- "STOP"
@@ -139,29 +146,3 @@ func main() {
 		fmt.Println("Finita la comedia #", i)
 	}
 }
-
-/*select {
-case msg, ok := <-l.chanMsg:
-	if !ok {
-		l.chanMsg = nil
-		fmt.Fprintf(l.errout, "Message channel is destroyed: %s\n", msg)
-		return
-	}
-	n, err := io.MultiWriter(l.outputs...).Write([]byte(msg.message))
-	time.Sleep(time.Second)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "error writing log message (%d bytes written): %v\n", n, err)
-	}
-case cmd, ok := <-l.chanCmd:
-	if !ok {
-		l.chanCmd = nil
-		close(l.chanMsg)
-		fmt.Fprintf(l.errout, "Message channel is closed: %s\n", cmd)
-		break
-	}
-	// Handle logCommand if needed, currently just print
-	fmt.Fprintf(l.errout, "received command: %s\n", cmd)
-}
-/*if l.chanCmd == nil && len(l.chanMsg) == 0 {
-	break
-}*/
