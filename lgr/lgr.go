@@ -89,31 +89,50 @@ func (l *Logger) IsActive() bool {
 	return l.state == ACTIVE
 }
 
-func (l *Logger) SetFallback(w io.Writer) {
-	if w != nil {
-		l.chngMtx.Lock()
-		l.fallbck = w
-		l.chngMtx.Unlock()
+func (l *Logger) SetFallback(f io.Writer) {
+	l.chngMtx.Lock()
+	defer l.chngMtx.Unlock()
+	if f != nil {
+		l.fallbck = f
+	} else {
+		l.fallbck = io.Discard
 	}
 }
 
-func (l *Logger) AddOutput(w io.Writer) {
-	if w == nil {
+func (l *Logger) SetLogLevel(level LogLevel) {
+	l.level = level
+}
+
+func (l *Logger) AddOutputs(outputs ...io.Writer) {
+	if len(outputs) == 0 {
 		return
 	}
 	l.chngMtx.Lock()
 	defer l.chngMtx.Unlock()
-	if !slices.Contains(l.outputs, w) {
-		l.outputs = append(l.outputs, w)
+	for _, output := range outputs {
+		if output != nil {
+			if !slices.Contains(l.outputs, output) {
+				l.outputs = append(l.outputs, output)
+			}
+		}
 	}
 }
 
-func (l *Logger) RemoveOutput(w io.Writer) {
+func (l *Logger) ClearOutputs() {
+	l.chngMtx.Lock()
+	defer l.chngMtx.Unlock()
+	l.outputs = nil
+}
+
+func (l *Logger) RemoveOutputs(outputs ...io.Writer) {
+	if len(outputs) == 0 {
+		return
+	}
 	l.chngMtx.Lock()
 	defer l.chngMtx.Unlock()
 	newOutputs := l.outputs[:0]
 	for _, out := range l.outputs {
-		if out != w {
+		if !slices.Contains(outputs, out) {
 			newOutputs = append(newOutputs, out)
 		}
 	}
@@ -126,14 +145,11 @@ func (l *Logger) Start(level LogLevel, buffsize uint, fallback io.Writer, output
 	if l.IsActive() {
 		return fmt.Errorf("logger is allready started")
 	}
+	l.SetFallback(fallback)
 	l.channel = make(chan logMessage, buffsize)
 	l.level = level
-	l.outputs = outputs
-	if fallback != nil {
-		l.fallbck = fallback
-	} else {
-		l.fallbck = io.Discard
-	}
+	l.ClearOutputs()
+	l.AddOutputs(outputs...)
 	l.state = ACTIVE
 	l.waitEnd.Go(func() { l.procced() })
 	return nil
