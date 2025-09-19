@@ -4,11 +4,12 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"slices"
 	"sync"
 )
 
 type LoggerState int8
+
+type logNone struct{}
 
 const (
 	STOPPED  LoggerState = 0
@@ -36,26 +37,59 @@ type logMessage struct {
 	message string
 }
 
+type outType io.Writer
+type outList map[outType]bool
+
 type Logger struct {
-	outputs []io.Writer
-	fallbck io.Writer
+	sync struct {
+		statMtx sync.RWMutex
+		outsMtx sync.RWMutex
+		chngMtx sync.RWMutex
+		waitEnd sync.WaitGroup
+	}
+	//clients map[string]loggerClient
+	outputs outList
+	fallbck outType
 	channel chan logMessage
-	statMtx sync.RWMutex
-	chngMtx sync.RWMutex
-	waitEnd sync.WaitGroup
 	state   LoggerState
 	level   LogLevel
 }
 
+/*type loggerClient struct {
+	prefix   string
+	postfix  string
+	maxLevel LogLevel
+}
+
+func (l *Logger) NewClient(prefix, postfix string, maxLevel LogLevel) *loggerClient {
+	client := &loggerClient{
+		prefix:   prefix,
+		postfix:  postfix,
+		maxLevel: maxLevel,
+	}
+	l.chngMtx.Lock()
+	defer l.chngMtx.Unlock()
+
+	return client
+}
+
+func (l *Logger) RemoveClient(*loggerClient) {
+	l.chngMtx.Lock()
+	defer l.chngMtx.Unlock()
+
+
+}
+*/
+
 func (l *Logger) handleLogWriteError(errormsg string) {
-	l.chngMtx.RLock()
-	defer l.chngMtx.RUnlock()
+	l.sync.outsMtx.RLock()
+	defer l.sync.outsMtx.RUnlock()
 	fmt.Fprintln(l.fallbck, errormsg)
 }
 
 func (l *Logger) setState(newstate LoggerState) {
-	l.statMtx.Lock()
-	defer l.statMtx.Unlock()
+	l.sync.statMtx.Lock()
+	defer l.sync.statMtx.Unlock()
 	l.state = newstate
 }
 
@@ -69,11 +103,11 @@ func (l *Logger) Log_(level LogLevel, s string) (err error) {
 		return fmt.Errorf("logger is not active")
 	}
 	if level >= l.level {
-		l.statMtx.RLock()
+		l.sync.statMtx.RLock()
 		if l.IsActive() {
 			l.channel <- logMessage{s}
 		}
-		l.statMtx.RUnlock()
+		l.sync.statMtx.RUnlock()
 	}
 	return err
 }
@@ -89,9 +123,9 @@ func (l *Logger) IsActive() bool {
 	return l.state == ACTIVE
 }
 
-func (l *Logger) SetFallback(f io.Writer) {
-	l.chngMtx.Lock()
-	defer l.chngMtx.Unlock()
+func (l *Logger) SetFallback(f outType) {
+	l.sync.outsMtx.Lock()
+	defer l.sync.outsMtx.Unlock()
 	if f != nil {
 		l.fallbck = f
 	} else {
@@ -103,45 +137,46 @@ func (l *Logger) SetLogLevel(level LogLevel) {
 	l.level = level
 }
 
-func (l *Logger) AddOutputs(outputs ...io.Writer) {
-	if len(outputs) == 0 {
+func (l *Logger) operateOutputs(slice []outType, operation func(m outList, k outType)) {
+	if len(slice) == 0 {
 		return
 	}
-	l.chngMtx.Lock()
-	defer l.chngMtx.Unlock()
-	for _, output := range outputs {
+	l.sync.outsMtx.Lock()
+	defer l.sync.outsMtx.Unlock()
+	for _, output := range slice {
 		if output != nil {
-			if !slices.Contains(l.outputs, output) {
-				l.outputs = append(l.outputs, output)
-			}
+			operation(l.outputs, output)
 		}
 	}
+}
+
+func (l *Logger) AddOutputs(outputs ...outType) {
+	l.operateOutputs(outputs, func(m outList, k outType) { m[k] = true })
 }
 
 func (l *Logger) ClearOutputs() {
-	l.chngMtx.Lock()
-	defer l.chngMtx.Unlock()
-	l.outputs = nil
+	l.sync.outsMtx.Lock()
+	defer l.sync.outsMtx.Unlock()
+	l.outputs = outList{}
+	/*for o := range l.outputs {
+		delete(l.outputs, o)
+	}*/
 }
 
-func (l *Logger) RemoveOutputs(outputs ...io.Writer) {
+func (l *Logger) RemoveOutputs(outputs ...outType) {
 	if len(outputs) == 0 {
 		return
 	}
-	l.chngMtx.Lock()
-	defer l.chngMtx.Unlock()
-	newOutputs := l.outputs[:0]
-	for _, out := range l.outputs {
-		if !slices.Contains(outputs, out) {
-			newOutputs = append(newOutputs, out)
-		}
+	l.sync.outsMtx.Lock()
+	defer l.sync.outsMtx.Unlock()
+	for _, output := range outputs {
+		delete(l.outputs, output)
 	}
-	l.outputs = newOutputs
 }
 
-func (l *Logger) Start(level LogLevel, buffsize uint, fallback io.Writer, outputs ...io.Writer) error {
-	l.statMtx.Lock()
-	defer l.statMtx.Unlock()
+func (l *Logger) Start(level LogLevel, buffsize uint, fallback outType, outputs ...outType) error {
+	l.sync.statMtx.Lock()
+	defer l.sync.statMtx.Unlock()
 	if l.IsActive() {
 		return fmt.Errorf("logger is allready started")
 	}
@@ -151,7 +186,7 @@ func (l *Logger) Start(level LogLevel, buffsize uint, fallback io.Writer, output
 	l.ClearOutputs()
 	l.AddOutputs(outputs...)
 	l.state = ACTIVE
-	l.waitEnd.Go(func() { l.procced() })
+	l.sync.waitEnd.Go(func() { l.procced() })
 	return nil
 }
 
@@ -165,7 +200,7 @@ func (l *Logger) Stop() {
 }
 
 func (l *Logger) Wait() {
-	l.waitEnd.Wait()
+	l.sync.waitEnd.Wait()
 }
 
 func (l *Logger) StopAndWait() {
@@ -174,19 +209,19 @@ func (l *Logger) StopAndWait() {
 }
 
 func (l *Logger) writeMsg(msg *logMessage) {
-	l.chngMtx.RLock()
-	defer l.chngMtx.RUnlock()
-	for idx, output := range l.outputs {
+	l.sync.outsMtx.RLock()
+	defer l.sync.outsMtx.RUnlock()
+	for output, enabled := range l.outputs {
 		func() {
 			defer func() {
 				if r := recover(); r != nil {
-					l.handleLogWriteError(fmt.Sprintf("panic writing log to output #%d: %v\n", idx, r))
+					l.handleLogWriteError(fmt.Sprintf("panic writing log to output `%v`: %v\n", output, r))
 				}
 			}()
-			if output != nil {
+			if enabled && output != nil {
 				n, err := output.Write([]byte(msg.message))
 				if err != nil {
-					l.handleLogWriteError(fmt.Sprintf("error writing log to output #%d (%d bytes written): %v\n", idx, n, err))
+					l.handleLogWriteError(fmt.Sprintf("error writing log to output `%v` (%d bytes written): %v\n", output, n, err))
 				}
 			}
 		}()
