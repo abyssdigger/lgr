@@ -8,10 +8,10 @@ import (
 )
 
 func main() {
-	var logger lgr.Logger
+	var logger = lgr.Init(lgr.DEBUG, os.Stderr, nil) //...Default()
 	outs := [...]io.Writer{os.Stdout, nil, os.Stderr}
 	for i := 1; i <= 3; i++ {
-		logger.Start(lgr.DEBUG, 32, os.Stderr, nil) //Default()
+		logger.Start(32)
 		logger.AddOutputs(outs[i-1])
 		for j := 0; j < 10; j++ {
 			err := logger.Log_(lgr.DEBUG, "LOG! #"+fmt.Sprint(j+1)+"\n")
@@ -23,6 +23,7 @@ func main() {
 		}
 		fmt.Println("Stopping logger...")
 		logger.StopAndWait()
+		logger.ClearOutputs()
 		fmt.Println("*** FINITA LA COMEDIA #", i, "***")
 	}
 }

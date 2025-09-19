@@ -74,7 +74,7 @@ func TestLogger_RemoveOutputs(t *testing.T) {
 	logger.AddOutputs(buf1, buf2, buf3)
 	// Удаление одного
 	logger.RemoveOutputs(buf1)
-	if len(logger.outputs) != 2 || logger.outputs[0] != buf2 || logger.outputs[1] != buf3 {
+	if len(logger.outputs) != 2 || logger.outputs[buf2] || !logger.outputs[buf3] || logger.outputs[buf1] {
 		t.Errorf("RemoveOutputs failed, outputs: %v", logger.outputs)
 	}
 	// Удаление нескольких
@@ -105,7 +105,7 @@ func TestLogger_Start(t *testing.T) {
 	logger := &Logger{}
 	buf := &bytes.Buffer{}
 	var errBuf bytes.Buffer
-	err := logger.Start(DEBUG, 4, &errBuf, buf)
+	err := logger.Init(DEBUG, 4, &errBuf, buf)
 	if err != nil {
 		t.Fatalf("Start error: %v", err)
 	}
@@ -113,7 +113,7 @@ func TestLogger_Start(t *testing.T) {
 		t.Error("Logger should be active after Start")
 	}
 	// Проверка повторного запуска
-	err2 := logger.Start(DEBUG, 4, &errBuf, buf)
+	err2 := logger.Init(DEBUG, 4, &errBuf, buf)
 	if err2 == nil {
 		t.Error("Expected error when starting already active logger")
 	}
@@ -125,7 +125,7 @@ func TestLogger_Start(t *testing.T) {
 
 func TestLogger_StartDefault(t *testing.T) {
 	logger := &Logger{}
-	err := logger.StartDefault()
+	err := logger.InitDefault()
 	if err != nil {
 		t.Fatalf("StartDefault error: %v", err)
 	}
@@ -155,7 +155,7 @@ func TestLogger_Log_WriteToAllOutputs(t *testing.T) {
 	buf1 := &bytes.Buffer{}
 	buf2 := &bytes.Buffer{}
 	var errBuf bytes.Buffer
-	err := logger.Start(DEBUG, 4, &errBuf, buf1, buf2)
+	err := logger.Init(DEBUG, 4, &errBuf, buf1, buf2)
 	if err != nil {
 		t.Fatalf("Start error: %v", err)
 	}
@@ -170,7 +170,7 @@ func TestLogger_Log_ErrorAndPanicHandling(t *testing.T) {
 	logger := &Logger{}
 	var errBuf bytes.Buffer
 	goodBuf := &bytes.Buffer{}
-	err := logger.Start(DEBUG, 4, &errBuf, &errorWriter{}, &panicWriter{}, goodBuf)
+	err := logger.Init(DEBUG, 4, &errBuf, &errorWriter{}, &panicWriter{}, goodBuf)
 	if err != nil {
 		t.Fatalf("Start error: %v", err)
 	}
@@ -201,7 +201,7 @@ func TestLogger_SetLogLevel(t *testing.T) {
 	logger := &Logger{}
 	buf := &bytes.Buffer{}
 	var errBuf bytes.Buffer
-	err := logger.Start(DEBUG, 4, &errBuf, buf)
+	err := logger.Init(DEBUG, 4, &errBuf, buf)
 	if err != nil {
 		t.Fatalf("Start error: %v", err)
 	}
@@ -221,7 +221,7 @@ func TestLogger_ConcurrentLogging(t *testing.T) {
 	logger := &Logger{}
 	buf := &bytes.Buffer{}
 	var errBuf bytes.Buffer
-	err := logger.Start(DEBUG, 10, &errBuf, buf)
+	err := logger.Init(DEBUG, 10, &errBuf, buf)
 	if err != nil {
 		t.Fatalf("Start error: %v", err)
 	}
