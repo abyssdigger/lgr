@@ -5,12 +5,13 @@ import (
 	"io"
 	"logger/lgr"
 	"os"
+	"time"
 )
 
 func main() {
-	var logger = lgr.Init(lgr.DEBUG, os.Stderr, nil) //...Default()
-	outs := [...]io.Writer{os.Stdout, nil, os.Stderr}
-	for i := 1; i <= 3; i++ {
+	var logger = lgr.InitWithParams(lgr.DEBUG, os.Stderr, nil) //...Default()
+	outs := [...]io.Writer{nil, os.Stdout, nil, os.Stderr, os.Stdout}
+	for i := 1; i <= len(outs); i++ {
 		logger.Start(32)
 		logger.AddOutputs(outs[i-1])
 		for j := 0; j < 10; j++ {
@@ -25,5 +26,6 @@ func main() {
 		logger.StopAndWait()
 		logger.ClearOutputs()
 		fmt.Println("*** FINITA LA COMEDIA #", i, "***")
+		time.Sleep(100 * time.Millisecond)
 	}
 }

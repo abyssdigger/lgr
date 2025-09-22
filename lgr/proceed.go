@@ -16,39 +16,56 @@ func (l *Logger) procced() {
 			l.setState(STOPPED)
 			break
 		}
-		l.proceedMsg(&msg)
+		err := l.proceedMsg(&msg)
+		if err != nil {
+			fmt.Fprintf(l.fallbck, "error proceeding command %s: %v\n", msg.msgtext, err)
+		}
 	}
 }
 
-func (l *Logger) proceedMsg(msg *logMessage) {
+func (l *Logger) proceedMsg(msg *logMessage) error {
+	switch msg.msgtype {
+	case MSG_LOG_TEXT:
+		l.logTextToOutputs(msg)
+	default:
+		return fmt.Errorf("unknown message type %v (text: %s)", msg.msgtype, msg.msgtext)
+	}
+	return nil
+}
+
+func (l *Logger) logTextToOutputs(msg *logMessage) {
 	l.sync.outsMtx.RLock()
 	defer l.sync.outsMtx.RUnlock()
 	for output, enabled := range l.outputs {
 		if enabled && output != nil {
-			if !l.writeMsg(output, msg) {
+			panicked, err := l.logText(output, msg)
+			if panicked {
+				// got panic writing, disable output
 				l.outputs[output] = false
+			}
+			if err != nil {
+				l.handleLogWriteError(err.Error())
 			}
 		}
 	}
 }
 
-func (l *Logger) writeMsg(output outType, msg *logMessage) (result bool) {
+func (l *Logger) logText(output OutType, msg *logMessage) (panicked bool, err error) {
 	// only returns of named result values can be changed by defer:
 	// https://bytegoblin.io/blog/golang-magic-modify-return-value-using-deferred-function
-	result = true
+	panicked = false
+	err = nil
 	defer func() {
 		if r := recover(); r != nil {
-			l.handleLogWriteError(
-				fmt.Sprintf("panic writing log to output `%v`: %v\n", output, r))
-			result = false
+			panicked = true
+			err = fmt.Errorf("panic writing log to output `%v`: %v", output, r)
 		}
 	}()
-	n, err := output.Write([]byte(msg.message))
+	n, err := output.Write([]byte(msg.msgtext))
 	if err != nil {
-		l.handleLogWriteError(
-			fmt.Sprintf("error writing log to output `%v` (%d bytes written): %v\n", output, n, err))
+		err = fmt.Errorf("error writing log to output `%v` (%d bytes written): %v", output, n, err)
 	}
-	return result
+	return
 }
 
 func (l *Logger) handleLogWriteError(errormsg string) {

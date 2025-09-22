@@ -8,9 +8,10 @@ import (
 type LoggerState int8
 
 const (
-	STOPPED  LoggerState = 0
+	UNKNOWN  LoggerState = 0
+	STOPPED  LoggerState = -1
 	ACTIVE   LoggerState = 1
-	STOPPING LoggerState = -1
+	STOPPING LoggerState = -2
 )
 
 type LogLevel uint8
@@ -22,6 +23,7 @@ const (
 	WARN
 	ERROR
 	FATAL
+	_MAX_FOR_CHECKS_ONLY
 )
 
 const (
@@ -29,12 +31,21 @@ const (
 	DEFAULT_LOG_LEVEL = INFO
 )
 
+type msgType uint8
+
+const (
+	_ msgType = iota
+	MSG_LOG_TEXT
+	MSG_CHG_LEVEL
+)
+
 type logMessage struct {
-	message string
+	msgtext string
+	msgtype msgType
 }
 
-type outType io.Writer
-type outList map[outType]bool
+type OutType io.Writer
+type OutList map[OutType]bool
 
 type Logger struct {
 	sync struct {
@@ -44,8 +55,8 @@ type Logger struct {
 		waitEnd sync.WaitGroup
 	}
 	//clients map[string]loggerClient
-	outputs outList
-	fallbck outType
+	outputs OutList
+	fallbck OutType
 	channel chan logMessage
 	state   LoggerState
 	level   LogLevel
