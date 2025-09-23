@@ -26,19 +26,19 @@ func (l *Logger) procced() {
 func (l *Logger) proceedMsg(msg *logMessage) error {
 	switch msg.msgtype {
 	case MSG_LOG_TEXT:
-		l.logTextToOutputs(msg)
+		l.logTextToOutputs(msg.msgtext)
 	default:
 		return fmt.Errorf("unknown message type %v (text: %s)", msg.msgtype, msg.msgtext)
 	}
 	return nil
 }
 
-func (l *Logger) logTextToOutputs(msg *logMessage) {
+func (l *Logger) logTextToOutputs(text string) {
 	l.sync.outsMtx.RLock()
 	defer l.sync.outsMtx.RUnlock()
 	for output, enabled := range l.outputs {
-		if enabled && output != nil && msg != nil {
-			panicked, err := l.logData(output, []byte(msg.msgtext))
+		if enabled && output != nil {
+			panicked, err := l.logData(output, []byte(text+"\n"))
 			if panicked {
 				// got panic writing, disable output
 				l.outputs[output] = false
@@ -71,5 +71,7 @@ func (l *Logger) logData(output OutType, data []byte) (panicked bool, err error)
 func (l *Logger) handleLogWriteError(errormsg string) {
 	l.sync.outsMtx.RLock()
 	defer l.sync.outsMtx.RUnlock()
-	fmt.Fprintln(l.fallbck, errormsg)
+	if l.fallbck != nil {
+		fmt.Fprintln(l.fallbck, errormsg)
+	}
 }

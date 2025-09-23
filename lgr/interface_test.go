@@ -104,25 +104,11 @@ func TestLogger_SetLogLevel(t *testing.T) {
 	for i := range rng {
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			l.SetLogLevel(LogLevel(i))
-			var res int
-			if i < int(_MAX_FOR_CHECKS_ONLY) {
-				res = i
-			} else {
-				res = int(_MAX_FOR_CHECKS_ONLY) - 1
+			res := LogLevel(i)
+			if res >= _MAX_FOR_CHECKS_ONLY {
+				res = _MAX_FOR_CHECKS_ONLY - 1
 			}
 			assert.Equal(t, LogLevel(res), l.level)
 		})
 	}
-}
-
-func FuzzLogger_SetLogLevel(f *testing.F) {
-	l := Init()
-	f.Fuzz(func(t *testing.T, b uint8) {
-		l.SetLogLevel(LogLevel(b))
-		res := LogLevel(b)
-		if res >= _MAX_FOR_CHECKS_ONLY {
-			res = _MAX_FOR_CHECKS_ONLY - 1
-		}
-		assert.Equal(t, res, l.level)
-	})
 }
