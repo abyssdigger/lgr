@@ -9,13 +9,13 @@ import (
 )
 
 func main() {
-	var logger = lgr.InitWithParams(lgr.DEBUG, os.Stderr, nil) //...Default()
+	var logger = lgr.InitWithParams(lgr.LVL_DEBUG, os.Stderr, nil) //...Default()
 	outs := [...]io.Writer{nil, os.Stdout, nil, os.Stderr, os.Stdout}
 	for i := 1; i <= len(outs); i++ {
 		logger.Start(32)
 		logger.AddOutputs(outs[i-1])
 		for j := 0; j < 10; j++ {
-			err := logger.Log_(lgr.DEBUG, "LOG! #"+fmt.Sprint(j+1))
+			err := logger.LogE(lgr.LVL_DEBUG, "LOG! #"+fmt.Sprint(j+1))
 			if err != nil {
 				fmt.Println("Error:", err)
 			} else {

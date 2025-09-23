@@ -13,7 +13,7 @@ func (l *Logger) procced() {
 	for {
 		msg, opened := <-l.channel
 		if !opened {
-			l.setState(STOPPED)
+			l.setState(STATE_STOPPED)
 			break
 		}
 		err := l.proceedMsg(&msg)

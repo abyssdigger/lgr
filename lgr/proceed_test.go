@@ -1,6 +1,7 @@
 package lgr
 
 import (
+	"errors"
 	"fmt"
 	"testing"
 
@@ -16,7 +17,7 @@ func (p *PanicWriter) Write(b []byte) (int, error) { panic(panicStr) }
 
 type ErrorWriter struct{}
 
-func (e *ErrorWriter) Write(b []byte) (int, error) { return 0, fmt.Errorf(errorStr) }
+func (e *ErrorWriter) Write(b []byte) (int, error) { return 0, errors.New(errorStr) }
 
 type FakeWriter struct {
 	buffer []byte
@@ -30,6 +31,7 @@ func (f *FakeWriter) String() string { return string(f.buffer) }
 func (f *FakeWriter) Clear()         { f.buffer = f.buffer[:0] }
 
 func TestLogger_proceedMsg(t *testing.T) {
+	strlog := "test text"
 	tests := []struct {
 		wantErr bool
 		name    string // description of this test case
@@ -37,22 +39,21 @@ func TestLogger_proceedMsg(t *testing.T) {
 		msg logMessage
 	}{
 		// TODO: Add test cases.
-		{false, "log_msgtype", logMessage{msgtype: MSG_LOG_TEXT, msgtext: "test text"}},
-		{true, "unused_msgtype", logMessage{msgtype: MSG_CHG_LEVEL, msgtext: "test text"}},
-		{true, "unknown_msgtype", logMessage{msgtype: 99, msgtext: "test text"}},
+		{false, "log_msgtype", logMessage{msgtype: MSG_LOG_TEXT, msgtext: strlog}},
+		{true, "unused_msgtype", logMessage{msgtype: MSG_CHG_LEVEL, msgtext: strlog}},
+		{true, "unknown_msgtype", logMessage{msgtype: 99, msgtext: strlog}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			l := Init() // any outputs, they are not used in this test
+			out_1 := &FakeWriter{}
+			l := InitWithParams(DEFAULT_LOG_LEVEL, nil, out_1)
 			gotErr := l.proceedMsg(&tt.msg)
-			if gotErr != nil {
-				if !tt.wantErr {
-					t.Errorf("proceedCmd() failed: %v", gotErr)
-				}
-				return
-			}
 			if tt.wantErr {
-				t.Fatal("proceedCmd() succeeded unexpectedly")
+				assert.Error(t, gotErr, "no expected error")
+				assert.Empty(t, out_1)
+			} else {
+				assert.Nil(t, gotErr, "unexpected error")
+				assert.Equal(t, strlog+"\n", out_1.String())
 			}
 		})
 	}
@@ -114,7 +115,7 @@ func TestLogger_handleLogWriteError(t *testing.T) {
 		{"none", ""},
 		{"escp", "\n\t\r\f\v\b'\"\\`"},
 	}
-	l := InitWithParams(TRACE, foutput)
+	l := InitWithParams(LVL_TRACE, foutput)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			l.handleLogWriteError(tt.emsg)
@@ -123,13 +124,13 @@ func TestLogger_handleLogWriteError(t *testing.T) {
 		})
 	}
 	t.Run("2nil", func(t *testing.T) {
-		l := InitWithParams(TRACE, nil)
+		l := InitWithParams(LVL_TRACE, nil)
 		assert.NotPanics(t, func() {
 			l.handleLogWriteError("test write to nil fallback")
 		}, "Panic on write to nil fallback")
 	})
 	t.Run("panic", func(t *testing.T) {
-		l := InitWithParams(TRACE, &PanicWriter{})
+		l := InitWithParams(LVL_TRACE, &PanicWriter{})
 		assert.Panics(t, func() {
 			l.handleLogWriteError("test panic")
 		}, "The code did not panic")
@@ -143,7 +144,7 @@ func TestLogger_logTextToOutputs(t *testing.T) {
 	ferr := &FakeWriter{}
 	t.Run("one_out", func(t *testing.T) {
 		out1.Clear()
-		l := InitWithParams(TRACE, nil, out1)
+		l := InitWithParams(LVL_TRACE, nil, out1)
 		s = "Write to 1 output"
 		l.logTextToOutputs(s)
 		assert.Equal(t, s+"\n", out1.String())
@@ -151,14 +152,14 @@ func TestLogger_logTextToOutputs(t *testing.T) {
 	t.Run("two_outs", func(t *testing.T) {
 		out1.Clear()
 		out2.Clear()
-		l := InitWithParams(TRACE, nil, out1, out2)
+		l := InitWithParams(LVL_TRACE, nil, out1, out2)
 		s = "Write to 2 outputs"
 		l.logTextToOutputs(s)
 		assert.Equal(t, s+"\n", out1.String())
 		assert.Equal(t, s+"\n", out2.String())
 	})
 	t.Run("no_outputs_no_fallback", func(t *testing.T) {
-		l := InitWithParams(TRACE, nil)
+		l := InitWithParams(LVL_TRACE, nil)
 		s = "Write to no outputs, no fallback"
 		assert.NotPanics(t, func() {
 			l.logTextToOutputs(s)
@@ -166,7 +167,7 @@ func TestLogger_logTextToOutputs(t *testing.T) {
 	})
 	t.Run("no_outputs", func(t *testing.T) {
 		ferr.Clear()
-		l := InitWithParams(TRACE, ferr)
+		l := InitWithParams(LVL_TRACE, ferr)
 		s = "Write to no outputs"
 		assert.NotPanics(t, func() {
 			l.logTextToOutputs(s)
@@ -174,7 +175,7 @@ func TestLogger_logTextToOutputs(t *testing.T) {
 		assert.Equal(t, "", ferr.String())
 	})
 	t.Run("nil_outs", func(t *testing.T) {
-		l := InitWithParams(TRACE, ferr, nil, nil)
+		l := InitWithParams(LVL_TRACE, ferr, nil, nil)
 		s = "Write to 2 nil outputs"
 		assert.NotPanics(t, func() {
 			l.logTextToOutputs(s)
@@ -184,7 +185,7 @@ func TestLogger_logTextToOutputs(t *testing.T) {
 		out1.Clear()
 		out2.Clear()
 		ferr.Clear()
-		l := InitWithParams(TRACE, ferr, out1, &PanicWriter{}, out2)
+		l := InitWithParams(LVL_TRACE, ferr, out1, &PanicWriter{}, out2)
 		s = "Write to 2 outputs and 1 panic"
 		l.logTextToOutputs(s)
 		assert.Equal(t, s+"\n", out1.String())
@@ -195,7 +196,7 @@ func TestLogger_logTextToOutputs(t *testing.T) {
 		out1.Clear()
 		out2.Clear()
 		ferr.Clear()
-		l := InitWithParams(TRACE, ferr, out1, &ErrorWriter{}, out2)
+		l := InitWithParams(LVL_TRACE, ferr, out1, &ErrorWriter{}, out2)
 		s = "Write to 2 outputs and 1 error"
 		l.logTextToOutputs(s)
 		assert.Equal(t, s+"\n", out1.String())
@@ -206,7 +207,7 @@ func TestLogger_logTextToOutputs(t *testing.T) {
 		out1.Clear()
 		out2.Clear()
 		ferr.Clear()
-		l := InitWithParams(TRACE, ferr, out1, &ErrorWriter{}, &PanicWriter{}, out2)
+		l := InitWithParams(LVL_TRACE, ferr, out1, &ErrorWriter{}, &PanicWriter{}, out2)
 		s = "Write to 2 outputs, 1 error and 1 panic"
 		l.logTextToOutputs(s)
 		assert.Equal(t, s+"\n", out1.String())
@@ -217,7 +218,7 @@ func TestLogger_logTextToOutputs(t *testing.T) {
 	t.Run("with_both_no_fallback", func(t *testing.T) {
 		out1.Clear()
 		out2.Clear()
-		l := InitWithParams(TRACE, nil, out1, &ErrorWriter{}, &PanicWriter{}, out2)
+		l := InitWithParams(LVL_TRACE, nil, out1, &ErrorWriter{}, &PanicWriter{}, out2)
 		s = "Write to 2 outputs, 1 error and 1 panic, no fallback"
 		assert.NotPanics(t, func() {
 			l.logTextToOutputs(s)
@@ -229,7 +230,7 @@ func TestLogger_logTextToOutputs(t *testing.T) {
 		out1.Clear()
 		out2.Clear()
 		ferr.Clear()
-		l := InitWithParams(TRACE, ferr, out1, out2)
+		l := InitWithParams(LVL_TRACE, ferr, out1, out2)
 		s = "Write to 2 disabled outputs"
 		l.outputs[out1] = false
 		l.outputs[out2] = false
@@ -242,7 +243,7 @@ func TestLogger_logTextToOutputs(t *testing.T) {
 		out1.Clear()
 		out2.Clear()
 		ferr.Clear()
-		l := InitWithParams(TRACE, ferr, out1, out2)
+		l := InitWithParams(LVL_TRACE, ferr, out1, out2)
 		s = "Write to 1 enabled output"
 		l.outputs[out1] = true
 		l.outputs[out2] = false
@@ -258,7 +259,7 @@ func TestLogger_procced(t *testing.T) {
 		out1 := &FakeWriter{}
 		out2 := &FakeWriter{}
 		s := "Write to 2 outputs"
-		l := InitWithParams(TRACE, nil, out1, out2)
+		l := InitWithParams(LVL_TRACE, nil, out1, out2)
 		l.Start(0) // start procced goroutine
 		l.channel <- logMessage{msgtype: MSG_LOG_TEXT, msgtext: s}
 		l.StopAndWait() // set state to STOPPING,
@@ -270,7 +271,7 @@ func TestLogger_procced(t *testing.T) {
 		out2 := &FakeWriter{}
 		ferr := &FakeWriter{}
 		s := "Write to 2 outputs and 1 panic"
-		l := InitWithParams(TRACE, ferr, out1, &PanicWriter{}, out2)
+		l := InitWithParams(LVL_TRACE, ferr, out1, &PanicWriter{}, out2)
 		l.Start(0) // start procced goroutine
 		l.channel <- logMessage{msgtype: MSG_LOG_TEXT, msgtext: s}
 		l.StopAndWait() // set state to STOPPING,
@@ -280,7 +281,7 @@ func TestLogger_procced(t *testing.T) {
 	})
 	t.Run("procced_unknown_msgtype", func(t *testing.T) {
 		ferr := &FakeWriter{}
-		l := InitWithParams(TRACE, ferr)
+		l := InitWithParams(LVL_TRACE, ferr)
 		l.Start(0) // start procced goroutine
 		l.channel <- logMessage{msgtype: 99, msgtext: "test text"}
 		l.StopAndWait() // set state to STOPPING,
@@ -288,7 +289,7 @@ func TestLogger_procced(t *testing.T) {
 	})
 	t.Run("panic_on_empty_msgtype", func(t *testing.T) {
 		ferr := &FakeWriter{}
-		l := InitWithParams(TRACE, ferr)
+		l := InitWithParams(LVL_TRACE, ferr)
 		l.Start(0) // start procced goroutine
 		l.channel <- logMessage{msgtext: "test text"}
 		l.StopAndWait() // set state to STOPPING,
@@ -296,7 +297,7 @@ func TestLogger_procced(t *testing.T) {
 	})
 	t.Run("procced_forbidden_msgtype", func(t *testing.T) {
 		ferr := &FakeWriter{}
-		l := InitWithParams(TRACE, ferr)
+		l := InitWithParams(LVL_TRACE, ferr)
 		l.Start(0) // start procced goroutine
 		l.channel <- logMessage{msgtype: MSG_FORBIDDEN, msgtext: "test text"}
 		l.StopAndWait() // set state to STOPPING,

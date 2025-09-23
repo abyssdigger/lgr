@@ -5,38 +5,42 @@ import (
 	"sync"
 )
 
-type LoggerState int8
+type LoggerState uint8
 
 const (
-	UNKNOWN  LoggerState = 0
-	STOPPED  LoggerState = -1
-	ACTIVE   LoggerState = 1
-	STOPPING LoggerState = -2
+	STATE_UNKNOWN LoggerState = iota
+	STATE_ACTIVE
+	STATE_STOPPING
+	STATE_STOPPED
+	_STATE_MAX_FOR_CHECKS_ONLY
 )
 
 type LogLevel uint8
 
 const (
-	TRACE LogLevel = iota
-	DEBUG
-	INFO
-	WARN
-	ERROR
-	FATAL
-	_MAX_FOR_CHECKS_ONLY
-)
-
-const (
-	DEFAULT_BUFF_SIZE = 32
-	DEFAULT_LOG_LEVEL = INFO
+	LVL_UNKNOWN LogLevel = iota
+	LVL_TRACE
+	LVL_DEBUG
+	LVL_INFO
+	LVL_WARN
+	LVL_ERROR
+	LVL_FATAL
+	LVL_UNMASKABLE
+	_LVL_MAX_FOR_CHECKS_ONLY
 )
 
 type msgType uint8
 
 const (
-	MSG_FORBIDDEN = iota
+	MSG_FORBIDDEN msgType = iota
 	MSG_LOG_TEXT
 	MSG_CHG_LEVEL
+	_MSG_MAX_FOR_CHECKS_ONLY
+)
+
+const (
+	DEFAULT_LOG_LEVEL = LVL_ERROR
+	DEFAULT_BUFF_SIZE = 32
 )
 
 type logMessage struct {

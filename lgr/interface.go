@@ -10,12 +10,11 @@ import (
 
 func InitWithParams(level LogLevel, fallback OutType, outputs ...OutType) *Logger {
 	l := new(Logger)
-	//delete(l.outputs, nil) // just in case
-	l.state = STOPPED
-	l.level = level
+	l.state = STATE_STOPPED
 	l.outputs = OutList{}
-	l.AddOutputs(outputs...)
+	l.SetLogLevel(level)
 	l.SetFallback(fallback)
+	l.AddOutputs(outputs...)
 	return l
 }
 
@@ -23,21 +22,28 @@ func Init() *Logger {
 	return InitWithParams(DEFAULT_LOG_LEVEL, os.Stderr, os.Stdout) //DEFAULT_BUFF_SIZE?
 }
 
-func (l *Logger) Start(buffsize uint) error {
+func (l *Logger) Start(buffsize int) error {
 	l.sync.statMtx.Lock()
 	defer l.sync.statMtx.Unlock()
 	if l.IsActive() {
 		return fmt.Errorf("logger is allready started")
 	}
+	if buffsize <= 0 {
+		buffsize = DEFAULT_BUFF_SIZE
+	}
 	l.channel = make(chan logMessage, buffsize)
 	l.sync.waitEnd.Go(func() { l.procced() })
-	l.state = ACTIVE
+	l.state = STATE_ACTIVE
 	return nil
 }
 
 func (l *Logger) Stop() {
-	l.setState(STOPPING)
-	close(l.channel)
+	l.sync.statMtx.Lock()
+	defer l.sync.statMtx.Unlock()
+	if l.IsActive() {
+		l.state = STATE_STOPPING
+		close(l.channel)
+	}
 }
 
 func (l *Logger) Wait() {
@@ -49,48 +55,63 @@ func (l *Logger) StopAndWait() {
 	l.Wait()
 }
 
-func (l *Logger) Log_(level LogLevel, s string) (err error) {
-	defer func() {
-		if r := recover(); r != nil {
-			err = fmt.Errorf("panic [%v]", r)
-		}
-	}()
-	if !l.IsActive() {
-		return fmt.Errorf("logger is not active")
-	}
-	if level >= l.level {
-		l.sync.statMtx.RLock()
-		if l.IsActive() {
-			l.channel <- logMessage{msgtype: MSG_LOG_TEXT, msgtext: s}
-		}
-		l.sync.statMtx.RUnlock()
-	}
-	return err
-}
-
 func (l *Logger) Log(level LogLevel, s string) {
-	err := l.Log_(level, s)
+	err := l.LogE(level, s)
 	if err != nil {
 		l.handleLogWriteError(err.Error())
 	}
 }
 
+func (l *Logger) LogE(level LogLevel, s string) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("panic [%v]", r)
+		}
+	}()
+	if level < l.level {
+		return
+	}
+	if l.level >= _LVL_MAX_FOR_CHECKS_ONLY {
+		//For testing purposes only, should never happen in real code
+		//because SetLogLevel() prevents setting invalid levels
+		panic("panic on forbidden log level")
+	}
+	l.sync.statMtx.RLock()
+	defer l.sync.statMtx.RUnlock()
+	if !l.IsActive() {
+		return fmt.Errorf("logger is not active")
+	} else {
+		if l.channel == nil {
+			return fmt.Errorf("logger channel is nil")
+		}
+		// will panic if channel is closed
+		l.channel <- logMessage{msgtype: MSG_LOG_TEXT, msgtext: s}
+	}
+	return
+}
+
 func (l *Logger) setState(newstate LoggerState) {
 	l.sync.statMtx.Lock()
 	defer l.sync.statMtx.Unlock()
-	l.state = newstate
+	if newstate < _STATE_MAX_FOR_CHECKS_ONLY {
+		l.state = newstate
+	} else {
+		l.state = STATE_UNKNOWN
+	}
 }
 
 func (l *Logger) SetLogLevel(level LogLevel) {
-	if level < _MAX_FOR_CHECKS_ONLY {
+	l.sync.chngMtx.Lock()
+	defer l.sync.chngMtx.Unlock()
+	if level < _LVL_MAX_FOR_CHECKS_ONLY {
 		l.level = level
 	} else {
-		l.level = _MAX_FOR_CHECKS_ONLY - 1
+		l.level = _LVL_MAX_FOR_CHECKS_ONLY - 1
 	}
 }
 
 func (l *Logger) IsActive() bool {
-	return l.state == ACTIVE
+	return l.state == STATE_ACTIVE
 }
 
 func (l *Logger) SetFallback(f OutType) {
