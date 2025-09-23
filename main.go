@@ -15,7 +15,7 @@ func main() {
 		logger.Start(32)
 		logger.AddOutputs(outs[i-1])
 		for j := 0; j < 10; j++ {
-			err := logger.Log_(lgr.DEBUG, "LOG! #"+fmt.Sprint(j+1)+"\n")
+			err := logger.Log_(lgr.DEBUG, "LOG! #"+fmt.Sprint(j+1))
 			if err != nil {
 				fmt.Println("Error:", err)
 			} else {

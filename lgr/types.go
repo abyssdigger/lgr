@@ -34,7 +34,7 @@ const (
 type msgType uint8
 
 const (
-	_ msgType = iota
+	MSG_FORBIDDEN = iota
 	MSG_LOG_TEXT
 	MSG_CHG_LEVEL
 )

@@ -10,7 +10,7 @@ import (
 
 func InitWithParams(level LogLevel, fallback OutType, outputs ...OutType) *Logger {
 	l := new(Logger)
-	delete(l.outputs, nil) // just in case
+	//delete(l.outputs, nil) // just in case
 	l.state = STOPPED
 	l.level = level
 	l.outputs = OutList{}

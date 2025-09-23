@@ -18,7 +18,7 @@ func (l *Logger) procced() {
 		}
 		err := l.proceedMsg(&msg)
 		if err != nil {
-			fmt.Fprintf(l.fallbck, "error proceeding command %s: %v\n", msg.msgtext, err)
+			fmt.Fprintf(l.fallbck, "error proceeding message: %v\n", err)
 		}
 	}
 }
@@ -27,6 +27,8 @@ func (l *Logger) proceedMsg(msg *logMessage) error {
 	switch msg.msgtype {
 	case MSG_LOG_TEXT:
 		l.logTextToOutputs(msg.msgtext)
+	case MSG_FORBIDDEN:
+		panic(fmt.Sprintf("panic on forbidden message type %d", msg.msgtype))
 	default:
 		return fmt.Errorf("unknown message type %v (text: %s)", msg.msgtype, msg.msgtext)
 	}
