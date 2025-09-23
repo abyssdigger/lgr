@@ -37,8 +37,8 @@ func (l *Logger) logTextToOutputs(msg *logMessage) {
 	l.sync.outsMtx.RLock()
 	defer l.sync.outsMtx.RUnlock()
 	for output, enabled := range l.outputs {
-		if enabled && output != nil {
-			panicked, err := l.logText(output, msg)
+		if enabled && output != nil && msg != nil {
+			panicked, err := l.logData(output, []byte(msg.msgtext))
 			if panicked {
 				// got panic writing, disable output
 				l.outputs[output] = false
@@ -50,7 +50,7 @@ func (l *Logger) logTextToOutputs(msg *logMessage) {
 	}
 }
 
-func (l *Logger) logText(output OutType, msg *logMessage) (panicked bool, err error) {
+func (l *Logger) logData(output OutType, data []byte) (panicked bool, err error) {
 	// only returns of named result values can be changed by defer:
 	// https://bytegoblin.io/blog/golang-magic-modify-return-value-using-deferred-function
 	panicked = false
@@ -61,7 +61,7 @@ func (l *Logger) logText(output OutType, msg *logMessage) (panicked bool, err er
 			err = fmt.Errorf("panic writing log to output `%v`: %v", output, r)
 		}
 	}()
-	n, err := output.Write([]byte(msg.msgtext))
+	n, err := output.Write(data)
 	if err != nil {
 		err = fmt.Errorf("error writing log to output `%v` (%d bytes written): %v", output, n, err)
 	}
