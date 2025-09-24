@@ -31,7 +31,6 @@ func (f *FakeWriter) String() string { return string(f.buffer) }
 func (f *FakeWriter) Clear()         { f.buffer = f.buffer[:0] }
 
 func TestLogger_proceedMsg(t *testing.T) {
-	strlog := "test text"
 	tests := []struct {
 		wantErr bool
 		name    string // description of this test case
@@ -39,9 +38,9 @@ func TestLogger_proceedMsg(t *testing.T) {
 		msg logMessage
 	}{
 		// TODO: Add test cases.
-		{false, "log_msgtype", logMessage{msgtype: MSG_LOG_TEXT, msgtext: strlog}},
-		{true, "unused_msgtype", logMessage{msgtype: MSG_CHG_LEVEL, msgtext: strlog}},
-		{true, "unknown_msgtype", logMessage{msgtype: 99, msgtext: strlog}},
+		{false, "log_msgtype", logMessage{msgtype: MSG_LOG_TEXT, msgdata: testlogstr}},
+		{true, "unused_msgtype", logMessage{msgtype: MSG_CHG_LEVEL, msgdata: testlogstr}},
+		{true, "unknown_msgtype", logMessage{msgtype: 99, msgdata: testlogstr}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -53,20 +52,20 @@ func TestLogger_proceedMsg(t *testing.T) {
 				assert.Empty(t, out_1)
 			} else {
 				assert.Nil(t, gotErr, "unexpected error")
-				assert.Equal(t, strlog+"\n", out_1.String())
+				assert.Equal(t, testlogstr+"\n", out_1.String())
 			}
 		})
 	}
 	t.Run("forbidden_msgtype", func(t *testing.T) {
 		l := Init() // any outputs, they are not used in this test
 		assert.Panics(t, func() {
-			l.proceedMsg(&logMessage{msgtype: MSG_FORBIDDEN, msgtext: "test text"})
+			l.proceedMsg(&logMessage{msgtype: MSG_FORBIDDEN, msgdata: testlogstr})
 		}, "The code did not panic")
 	})
 	t.Run("empty_msgtype", func(t *testing.T) {
 		l := Init() // any outputs, they are not used in this test
 		assert.Panics(t, func() {
-			l.proceedMsg(&logMessage{msgtext: "test text"})
+			l.proceedMsg(&logMessage{msgdata: testlogstr})
 		}, "The code did not panic")
 	})
 }
@@ -81,12 +80,12 @@ func TestLogger_logData(t *testing.T) {
 		output OutType
 		data   []byte
 	}{
-		{false, false, "valid_output", foutput, []byte("normal text")},
+		{false, false, "valid_output", foutput, []byte(testlogstr)},
 		{false, false, "empty_msg", foutput, []byte{}},
 		{false, false, "nil_msg", foutput, nil},
-		{false, true, "error_output", OutType(&ErrorWriter{}), []byte("test text")},
-		{true, true, "panic_output", OutType(&PanicWriter{}), []byte("test text")},
-		{true, true, "nil_output", nil, []byte("test to nil")},
+		{false, true, "error_output", OutType(&ErrorWriter{}), []byte(testlogstr)},
+		{true, true, "panic_output", OutType(&PanicWriter{}), []byte(testlogstr)},
+		{true, true, "nil_output", nil, []byte(testlogstr)},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -113,7 +112,7 @@ func TestLogger_handleLogWriteError(t *testing.T) {
 		{"text", "normal text"},
 		{"utf8", "нормальный текст"},
 		{"none", ""},
-		{"escp", "\n\t\r\f\v\b'\"\\`"},
+		{"escp", testlogstr},
 	}
 	l := InitWithParams(LVL_TRACE, foutput)
 	for _, tt := range tests {
@@ -261,7 +260,7 @@ func TestLogger_procced(t *testing.T) {
 		s := "Write to 2 outputs"
 		l := InitWithParams(LVL_TRACE, nil, out1, out2)
 		l.Start(0) // start procced goroutine
-		l.channel <- logMessage{msgtype: MSG_LOG_TEXT, msgtext: s}
+		l.channel <- logMessage{msgtype: MSG_LOG_TEXT, msgdata: s}
 		l.StopAndWait() // set state to STOPPING,
 		assert.Equal(t, s+"\n", out1.String())
 		assert.Equal(t, s+"\n", out2.String())
@@ -273,7 +272,7 @@ func TestLogger_procced(t *testing.T) {
 		s := "Write to 2 outputs and 1 panic"
 		l := InitWithParams(LVL_TRACE, ferr, out1, &PanicWriter{}, out2)
 		l.Start(0) // start procced goroutine
-		l.channel <- logMessage{msgtype: MSG_LOG_TEXT, msgtext: s}
+		l.channel <- logMessage{msgtype: MSG_LOG_TEXT, msgdata: s}
 		l.StopAndWait() // set state to STOPPING,
 		assert.Equal(t, s+"\n", out1.String())
 		assert.Equal(t, s+"\n", out2.String())
@@ -283,7 +282,7 @@ func TestLogger_procced(t *testing.T) {
 		ferr := &FakeWriter{}
 		l := InitWithParams(LVL_TRACE, ferr)
 		l.Start(0) // start procced goroutine
-		l.channel <- logMessage{msgtype: 99, msgtext: "test text"}
+		l.channel <- logMessage{msgtype: 99, msgdata: "test text"}
 		l.StopAndWait() // set state to STOPPING,
 		assert.Contains(t, ferr.String(), "unknown message type")
 	})
@@ -291,7 +290,7 @@ func TestLogger_procced(t *testing.T) {
 		ferr := &FakeWriter{}
 		l := InitWithParams(LVL_TRACE, ferr)
 		l.Start(0) // start procced goroutine
-		l.channel <- logMessage{msgtext: "test text"}
+		l.channel <- logMessage{msgdata: "test text"}
 		l.StopAndWait() // set state to STOPPING,
 		assert.Contains(t, ferr.String(), "panic")
 	})
@@ -299,7 +298,7 @@ func TestLogger_procced(t *testing.T) {
 		ferr := &FakeWriter{}
 		l := InitWithParams(LVL_TRACE, ferr)
 		l.Start(0) // start procced goroutine
-		l.channel <- logMessage{msgtype: MSG_FORBIDDEN, msgtext: "test text"}
+		l.channel <- logMessage{msgtype: MSG_FORBIDDEN, msgdata: "test text"}
 		l.StopAndWait() // set state to STOPPING,
 		assert.Contains(t, ferr.String(), "panic on forbidden message type")
 	})

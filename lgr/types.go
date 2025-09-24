@@ -1,14 +1,15 @@
 package lgr
 
 import (
+	"fmt"
 	"io"
 	"sync"
 )
 
-type LoggerState uint8
+type LgrState uint8
 
 const (
-	STATE_UNKNOWN LoggerState = iota
+	STATE_UNKNOWN LgrState = iota
 	STATE_ACTIVE
 	STATE_STOPPING
 	STATE_STOPPED
@@ -44,24 +45,55 @@ const (
 )
 
 type logMessage struct {
-	msgtext string
+	msgclnt *logClient
+	msgdata string
 	msgtype msgType
+}
+
+type logClient struct {
+	logger   *Logger
+	prefix   string
+	postfix  string
+	maxLevel LogLevel
+	curLevel LogLevel
 }
 
 type OutType io.Writer
 type OutList map[OutType]bool
+type Clients map[*logClient]LogLevel
 
 type Logger struct {
 	sync struct {
 		statMtx sync.RWMutex
 		outsMtx sync.RWMutex
 		chngMtx sync.RWMutex
+		clntMtx sync.RWMutex
 		waitEnd sync.WaitGroup
 	}
-	//clients map[string]loggerClient
+	clients Clients
 	outputs OutList
 	fallbck OutType
 	channel chan logMessage
-	state   LoggerState
+	state   LgrState
 	level   LogLevel
+}
+
+func norm_uint8[T ~uint8](val, overlimit, def T) T {
+	if val < overlimit {
+		return val
+	} else {
+		return def
+	}
+}
+
+func normState(state LgrState) LgrState {
+	return norm_uint8(state, _STATE_MAX_FOR_CHECKS_ONLY, STATE_UNKNOWN)
+}
+
+func normLevel(level LogLevel) LogLevel {
+	return norm_uint8(level, _LVL_MAX_FOR_CHECKS_ONLY, _LVL_MAX_FOR_CHECKS_ONLY-1)
+}
+
+func logstr(format, prefix, message, postfix string) string {
+	return fmt.Sprintf(format, prefix, message, postfix)
 }

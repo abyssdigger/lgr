@@ -26,11 +26,15 @@ func (l *Logger) procced() {
 func (l *Logger) proceedMsg(msg *logMessage) error {
 	switch msg.msgtype {
 	case MSG_LOG_TEXT:
-		l.logTextToOutputs(msg.msgtext)
+		if msg.msgclnt == nil {
+			l.logTextToOutputs(msg.msgdata)
+		} else {
+			l.logTextToOutputs(logstr("%s|%s|%s", msg.msgclnt.prefix, msg.msgdata, msg.msgclnt.postfix))
+		}
 	case MSG_FORBIDDEN:
 		panic(fmt.Sprintf("panic on forbidden message type %d", msg.msgtype))
 	default:
-		return fmt.Errorf("unknown message type %v (text: %s)", msg.msgtype, msg.msgtext)
+		return fmt.Errorf("unknown message type %v (text: %v)", msg.msgtype, msg.msgdata)
 	}
 	return nil
 }

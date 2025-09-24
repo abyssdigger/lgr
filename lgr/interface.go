@@ -12,7 +12,8 @@ func InitWithParams(level LogLevel, fallback OutType, outputs ...OutType) *Logge
 	l := new(Logger)
 	l.state = STATE_STOPPED
 	l.outputs = OutList{}
-	l.SetLogLevel(level)
+	l.clients = Clients{}
+	l.SetMinLevel(level)
 	l.SetFallback(fallback)
 	l.AddOutputs(outputs...)
 	return l
@@ -62,7 +63,7 @@ func (l *Logger) Log(level LogLevel, s string) {
 	}
 }
 
-func (l *Logger) LogE(level LogLevel, s string) (err error) {
+func (l *Logger) LogC(lc *logClient, level LogLevel, s string) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = fmt.Errorf("panic [%v]", r)
@@ -85,29 +86,25 @@ func (l *Logger) LogE(level LogLevel, s string) (err error) {
 			return fmt.Errorf("logger channel is nil")
 		}
 		// will panic if channel is closed
-		l.channel <- logMessage{msgtype: MSG_LOG_TEXT, msgtext: s}
+		l.channel <- logMessage{msgclnt: lc, msgtype: MSG_LOG_TEXT, msgdata: s}
 	}
 	return
 }
 
-func (l *Logger) setState(newstate LoggerState) {
-	l.sync.statMtx.Lock()
-	defer l.sync.statMtx.Unlock()
-	if newstate < _STATE_MAX_FOR_CHECKS_ONLY {
-		l.state = newstate
-	} else {
-		l.state = STATE_UNKNOWN
-	}
+func (l *Logger) LogE(level LogLevel, s string) (err error) {
+	return l.LogC(nil, level, s)
 }
 
-func (l *Logger) SetLogLevel(level LogLevel) {
+func (l *Logger) setState(newstate LgrState) {
+	l.sync.statMtx.Lock()
+	defer l.sync.statMtx.Unlock()
+	l.state = normState(newstate)
+}
+
+func (l *Logger) SetMinLevel(minlevel LogLevel) {
 	l.sync.chngMtx.Lock()
 	defer l.sync.chngMtx.Unlock()
-	if level < _LVL_MAX_FOR_CHECKS_ONLY {
-		l.level = level
-	} else {
-		l.level = _LVL_MAX_FOR_CHECKS_ONLY - 1
-	}
+	l.level = normLevel(minlevel)
 }
 
 func (l *Logger) IsActive() bool {

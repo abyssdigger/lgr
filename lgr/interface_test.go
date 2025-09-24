@@ -9,6 +9,8 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+const testlogstr = "Test log АБВ こんにちは, 世界!`'\u00e9\"\\\x5A\254\n\a\b\t\f\r\v"
+
 func TestLogger_ClearOutputs(t *testing.T) {
 	tests := []struct {
 		name    string // description of this test case
@@ -92,7 +94,7 @@ func TestLogger_IsActive(t *testing.T) {
 	rng := 256
 	t.Run("one_from_255", func(t *testing.T) {
 		for i := range rng {
-			l.setState(LoggerState(i))
+			l.setState(LgrState(i))
 			assert.Equal(t, l.state == STATE_ACTIVE, l.IsActive())
 		}
 	})
@@ -101,40 +103,39 @@ func TestLogger_IsActive(t *testing.T) {
 func TestLogger_SetLogLevel(t *testing.T) {
 	l := Init()
 	rng := 255
-	for i := range rng {
-		t.Run(strconv.Itoa(i), func(t *testing.T) {
-			l.SetLogLevel(LogLevel(i))
+	t.Run("only_valid_from_255", func(t *testing.T) {
+		for i := range rng {
+			l.SetMinLevel(LogLevel(i))
 			res := LogLevel(i)
 			if res >= _LVL_MAX_FOR_CHECKS_ONLY {
 				res = _LVL_MAX_FOR_CHECKS_ONLY - 1
 			}
 			assert.Equal(t, res, l.level)
-		})
-	}
+		}
+	})
 }
 
 func TestLogger_setState(t *testing.T) {
 	l := Init()
 	rng := 255
-	for i := range rng {
-		t.Run(strconv.Itoa(i), func(t *testing.T) {
-			l.setState(LoggerState(i))
-			res := LoggerState(i)
+	t.Run("only_valid_from_255", func(t *testing.T) {
+		for i := range rng {
+			l.setState(LgrState(i))
+			res := LgrState(i)
 			if res >= _STATE_MAX_FOR_CHECKS_ONLY {
 				res = STATE_UNKNOWN
 			}
 			assert.Equal(t, res, l.state)
-		})
-	}
+		}
+	})
 }
 
 func TestLogger_LogE(t *testing.T) {
-	logstr := "Test log message"
 	t.Run("nil_output", func(t *testing.T) {
 		ferror := &FakeWriter{}
 		l := InitWithParams(LVL_TRACE, ferror)
 		l.Start(0)
-		err := l.LogE(LVL_INFO, logstr)
+		err := l.LogE(LVL_INFO, testlogstr)
 		assert.Nil(t, err, "error on log to nil outputs")
 		l.StopAndWait()
 		assert.Empty(t, ferror, "data written to fallback")
@@ -142,7 +143,7 @@ func TestLogger_LogE(t *testing.T) {
 	t.Run("not_active", func(t *testing.T) {
 		ferror := &FakeWriter{}
 		l := InitWithParams(LVL_TRACE, ferror)
-		err := l.LogE(LVL_INFO, logstr)
+		err := l.LogE(LVL_INFO, testlogstr)
 		assert.NotNil(t, err, "no error on log to stopped logger")
 		assert.Contains(t, err.Error(), "not active", "Wrong error on log to stopped logger")
 		assert.Empty(t, ferror, "data written to fallback")
@@ -152,7 +153,7 @@ func TestLogger_LogE(t *testing.T) {
 		out_1 := &FakeWriter{}
 		l := InitWithParams(LVL_WARN, ferror, out_1)
 		l.Start(0)
-		err := l.LogE(LVL_INFO, logstr)
+		err := l.LogE(LVL_INFO, testlogstr)
 		assert.Nil(t, err, "error on log with level lower than set")
 		l.StopAndWait()
 		assert.Empty(t, ferror, "data written to fallback on log with level lower than set")
@@ -163,12 +164,12 @@ func TestLogger_LogE(t *testing.T) {
 		out_1 := &FakeWriter{}
 		l := InitWithParams(LVL_WARN, ferror, out_1)
 		l.Start(0)
-		err := l.LogE(LVL_WARN, logstr)
+		err := l.LogE(LVL_WARN, testlogstr)
 		assert.Nil(t, err, "error on log with level higher than set")
 		l.StopAndWait()
 		assert.Empty(t, ferror, "data written to fallback on log with level higher than set")
 		assert.NotEmpty(t, out_1, "no data written to output on log with level higher than set")
-		assert.Equal(t, logstr+"\n", out_1.String(), "wrong data written to output on log with level higher than set")
+		assert.Equal(t, testlogstr+"\n", out_1.String(), "wrong data written to output on log with level higher than set")
 	})
 	t.Run("panic_on_closed_channel", func(t *testing.T) {
 		ferror := &FakeWriter{}
@@ -176,7 +177,7 @@ func TestLogger_LogE(t *testing.T) {
 		l := InitWithParams(LVL_TRACE, ferror, out_1)
 		l.Start(0)
 		close(l.channel)
-		err := l.LogE(LVL_TRACE, logstr)
+		err := l.LogE(LVL_TRACE, testlogstr)
 		assert.NotNil(t, err, "no error on log with closed channel")
 		assert.Contains(t, err.Error(), "panic", "wrong error on log with closed channel")
 		l.channel = make(chan logMessage)
@@ -189,7 +190,7 @@ func TestLogger_LogE(t *testing.T) {
 		out_1 := &FakeWriter{}
 		l := InitWithParams(LVL_TRACE, ferror, out_1)
 		l.state = STATE_ACTIVE
-		err := l.LogE(LVL_TRACE, logstr)
+		err := l.LogE(LVL_TRACE, testlogstr)
 		assert.NotNil(t, err, "no error on log with nil channel")
 		assert.Contains(t, err.Error(), "is nil", "wrong error on log with nil channel")
 		assert.Empty(t, ferror, "data written to fallback on log with nil channel")
@@ -203,7 +204,7 @@ func TestLogger_LogE(t *testing.T) {
 		l.level = _LVL_MAX_FOR_CHECKS_ONLY
 		// simulate wrong level set by SetLogLevel
 		// to test panic in Log_()
-		err := l.LogE(_LVL_MAX_FOR_CHECKS_ONLY, logstr)
+		err := l.LogE(_LVL_MAX_FOR_CHECKS_ONLY, testlogstr)
 		assert.NotNil(t, err, "no error on log with forbidden level")
 		assert.Contains(t, err.Error(), "panic", "wrong error on log with forbidden level")
 		l.StopAndWait()
@@ -216,25 +217,24 @@ func TestLogger_LogE(t *testing.T) {
 		out_2 := &FakeWriter{}
 		l := InitWithParams(LVL_TRACE, ferror, out_1, out_2)
 		l.Start(0)
-		err := l.LogE(LVL_INFO, logstr)
+		err := l.LogE(LVL_INFO, testlogstr)
 		assert.Nil(t, err, "error on log with level higher than set")
 		l.StopAndWait()
 		assert.Empty(t, ferror, "data written to fallback on log with level higher than set")
 		assert.NotEmpty(t, out_1, "no data written to output1 on log with level higher than set")
-		assert.Equal(t, logstr+"\n", out_1.String(), "wrong data written to output1 on log with level higher than set")
+		assert.Equal(t, testlogstr+"\n", out_1.String(), "wrong data written to output1 on log with level higher than set")
 		assert.NotEmpty(t, out_2, "no data written to output2 on log with level higher than set")
-		assert.Equal(t, logstr+"\n", out_2.String(), "wrong data written to output2 on log with level higher than set")
+		assert.Equal(t, testlogstr+"\n", out_2.String(), "wrong data written to output2 on log with level higher than set")
 	})
 }
 
 func TestLogger_Log(t *testing.T) {
-	logstr := "Test log message"
 	t.Run("no_outputs", func(t *testing.T) {
 		ferr := &FakeWriter{}
 		l := InitWithParams(LVL_TRACE, ferr)
 		assert.NotPanics(t, func() {
 			l.Start(0)
-			l.Log(LVL_INFO, logstr)
+			l.Log(LVL_INFO, testlogstr)
 			l.StopAndWait()
 		}, "Panic on write to nil fallback")
 		assert.Empty(t, ferr.String(), "data written to fallback on write to nil outputs")
@@ -246,11 +246,11 @@ func TestLogger_Log(t *testing.T) {
 		l := InitWithParams(LVL_TRACE, ferr, out1, out2)
 		assert.NotPanics(t, func() {
 			l.Start(0)
-			l.Log(LVL_INFO, logstr)
+			l.Log(LVL_INFO, testlogstr)
 			l.StopAndWait()
 		}, "Panic on write to 2 outputs")
-		assert.Equal(t, logstr+"\n", out1.String())
-		assert.Equal(t, logstr+"\n", out2.String())
+		assert.Equal(t, testlogstr+"\n", out1.String())
+		assert.Equal(t, testlogstr+"\n", out2.String())
 		assert.Empty(t, ferr.String(), "data written to fallback on write to 2 outputs")
 	})
 	t.Run("1_error_1_panic", func(t *testing.T) {
@@ -260,11 +260,11 @@ func TestLogger_Log(t *testing.T) {
 		l := InitWithParams(LVL_TRACE, ferr, out1, &ErrorWriter{}, out2, &PanicWriter{})
 		assert.NotPanics(t, func() {
 			l.Start(0)
-			l.Log(LVL_INFO, logstr)
+			l.Log(LVL_INFO, testlogstr)
 			l.StopAndWait()
 		}, "Panic on write to nil fallback")
-		assert.Equal(t, logstr+"\n", out1.String())
-		assert.Equal(t, logstr+"\n", out2.String())
+		assert.Equal(t, testlogstr+"\n", out1.String())
+		assert.Equal(t, testlogstr+"\n", out2.String())
 		assert.Contains(t, ferr.String(), panicStr+"\n")
 		assert.Contains(t, ferr.String(), errorStr+"\n")
 	})
@@ -278,7 +278,7 @@ func TestLogger_Log(t *testing.T) {
 		// to test panic in Log_()
 		assert.NotPanics(t, func() {
 			l.Start(0)
-			l.Log(_LVL_MAX_FOR_CHECKS_ONLY, logstr)
+			l.Log(_LVL_MAX_FOR_CHECKS_ONLY, testlogstr)
 			l.StopAndWait()
 		}, "Panic in LogE")
 		assert.Empty(t, out1.String())
