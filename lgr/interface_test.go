@@ -14,14 +14,14 @@ const testlogstr = "Test log АБВ こんにちは, 世界!`'\u00e9\"\\\x5A\254
 func TestLogger_ClearOutputs(t *testing.T) {
 	tests := []struct {
 		name    string // description of this test case
-		outputs []OutType
+		outputs []outType
 	}{
 		// TODO: Add test cases.
-		{"One", []OutType{os.Stdout}},
-		{"Two", []OutType{io.Discard, os.Stdout}},
-		{"Five", []OutType{io.Discard, os.Stdout, os.Stderr, io.Discard, io.Discard}},
-		{"Empty", []OutType{}},
-		{"nil", []OutType{nil}},
+		{"One", []outType{os.Stdout}},
+		{"Two", []outType{io.Discard, os.Stdout}},
+		{"Five", []outType{io.Discard, os.Stdout, os.Stderr, io.Discard, io.Discard}},
+		{"Empty", []outType{}},
+		{"nil", []outType{nil}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -36,28 +36,28 @@ func TestLogger_RemoveOutputs(t *testing.T) {
 	tests := []struct {
 		wants   int
 		name    string // description of this test case
-		outputs []OutType
-		removes []OutType
+		outputs []outType
+		removes []outType
 	}{
 		// BE CAREFULL!!! In tests os.Stdout == os.Stderr
-		{1, "1_rem_nil", []OutType{os.Stdout}, nil},
-		{1, "1_rem_1nil", []OutType{os.Stdout}, []OutType{nil}},
-		{1, "1_rem_empty", []OutType{os.Stdout}, []OutType{}},
-		{1, "1_rem_unknown", []OutType{os.Stdout}, []OutType{os.Stdin}},
-		{0, "1_rem_1", []OutType{os.Stdout}, []OutType{os.Stdout}},
-		{0, "1_rem_2", []OutType{os.Stdout}, []OutType{os.Stdout, os.Stdin}},
-		{0, "2_rem_2", []OutType{os.Stdout, os.Stdin}, []OutType{os.Stdout, os.Stdin}},
-		{1, "2_rem_1_1unkn", []OutType{os.Stdout, os.Stdin}, []OutType{os.Stdout, io.Discard}},
-		{2, "2_rem_0", []OutType{os.Stdout, os.Stdin}, []OutType{}},
-		{0, "2_rem_3", []OutType{os.Stdout, os.Stdin}, []OutType{os.Stdout, os.Stdin, io.Discard}},
-		{0, "0_rem_1", []OutType{}, []OutType{os.Stdout}},
-		{0, "0_rem_0", []OutType{}, []OutType{}},
-		{0, "0_rem_nil", []OutType{}, []OutType{nil}},
-		{0, "1nil_rem_1", []OutType{nil}, []OutType{os.Stdout}},
-		{0, "1nil_rem_0", []OutType{nil}, []OutType{}},
-		{0, "1nil_rem_nil", []OutType{nil}, nil},
-		{0, "nil_rem_1", nil, []OutType{os.Stdout}},
-		{0, "nil_rem_0", nil, []OutType{}},
+		{1, "1_rem_nil", []outType{os.Stdout}, nil},
+		{1, "1_rem_1nil", []outType{os.Stdout}, []outType{nil}},
+		{1, "1_rem_empty", []outType{os.Stdout}, []outType{}},
+		{1, "1_rem_unknown", []outType{os.Stdout}, []outType{os.Stdin}},
+		{0, "1_rem_1", []outType{os.Stdout}, []outType{os.Stdout}},
+		{0, "1_rem_2", []outType{os.Stdout}, []outType{os.Stdout, os.Stdin}},
+		{0, "2_rem_2", []outType{os.Stdout, os.Stdin}, []outType{os.Stdout, os.Stdin}},
+		{1, "2_rem_1_1unkn", []outType{os.Stdout, os.Stdin}, []outType{os.Stdout, io.Discard}},
+		{2, "2_rem_0", []outType{os.Stdout, os.Stdin}, []outType{}},
+		{0, "2_rem_3", []outType{os.Stdout, os.Stdin}, []outType{os.Stdout, os.Stdin, io.Discard}},
+		{0, "0_rem_1", []outType{}, []outType{os.Stdout}},
+		{0, "0_rem_0", []outType{}, []outType{}},
+		{0, "0_rem_nil", []outType{}, []outType{nil}},
+		{0, "1nil_rem_1", []outType{nil}, []outType{os.Stdout}},
+		{0, "1nil_rem_0", []outType{nil}, []outType{}},
+		{0, "1nil_rem_nil", []outType{nil}, nil},
+		{0, "nil_rem_1", nil, []outType{os.Stdout}},
+		{0, "nil_rem_0", nil, []outType{}},
 		{0, "nil_rem_nil", nil, nil},
 	}
 	for _, tt := range tests {
@@ -72,8 +72,8 @@ func TestLogger_RemoveOutputs(t *testing.T) {
 func TestLogger_SetFallback(t *testing.T) {
 	tests := []struct {
 		name     string // description of this test case
-		fallback OutType
-		wants    OutType
+		fallback outType
+		wants    outType
 	}{
 		// TODO: Add test cases.
 		{"Stdout", os.Stdout, os.Stdout},
@@ -94,7 +94,7 @@ func TestLogger_IsActive(t *testing.T) {
 	rng := 256
 	t.Run("one_from_255", func(t *testing.T) {
 		for i := range rng {
-			l.setState(LgrState(i))
+			l.setState(lgrState(i))
 			assert.Equal(t, l.state == STATE_ACTIVE, l.IsActive())
 		}
 	})
@@ -105,8 +105,8 @@ func TestLogger_SetLogLevel(t *testing.T) {
 	rng := 255
 	t.Run("only_valid_from_255", func(t *testing.T) {
 		for i := range rng {
-			l.SetMinLevel(LogLevel(i))
-			res := LogLevel(i)
+			l.SetMinLevel(logLevel(i))
+			res := logLevel(i)
 			if res >= _LVL_MAX_FOR_CHECKS_ONLY {
 				res = _LVL_MAX_FOR_CHECKS_ONLY - 1
 			}
@@ -120,8 +120,8 @@ func TestLogger_setState(t *testing.T) {
 	rng := 255
 	t.Run("only_valid_from_255", func(t *testing.T) {
 		for i := range rng {
-			l.setState(LgrState(i))
-			res := LgrState(i)
+			l.setState(lgrState(i))
+			res := lgrState(i)
 			if res >= _STATE_MAX_FOR_CHECKS_ONLY {
 				res = STATE_UNKNOWN
 			}

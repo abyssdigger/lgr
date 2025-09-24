@@ -4,7 +4,7 @@ import (
 	"fmt"
 )
 
-func (l *Logger) procced() {
+func (l *logger) procced() {
 	defer func() {
 		if r := recover(); r != nil {
 			fmt.Fprintf(l.fallbck, "panic proceeding log: %v\n", r)
@@ -23,23 +23,24 @@ func (l *Logger) procced() {
 	}
 }
 
-func (l *Logger) proceedMsg(msg *logMessage) error {
+func (l *logger) proceedMsg(msg *logMessage) error {
 	switch msg.msgtype {
 	case MSG_LOG_TEXT:
 		if msg.msgclnt == nil {
 			l.logTextToOutputs(msg.msgdata)
 		} else {
-			l.logTextToOutputs(logstr("%s|%s|%s", msg.msgclnt.prefix, msg.msgdata, msg.msgclnt.postfix))
+			l.logTextToOutputs(LogLevelDesc[msg.level].Short + " " + LogLevelDesc[msg.level].color + logstr("%s|%s", msg.msgclnt.name, msg.msgdata) + logTermReset)
 		}
 	case MSG_FORBIDDEN:
+		// For testing purposes only
 		panic(fmt.Sprintf("panic on forbidden message type %d", msg.msgtype))
 	default:
-		return fmt.Errorf("unknown message type %v (text: %v)", msg.msgtype, msg.msgdata)
+		return fmt.Errorf("unknown message type %v (data: %v)", msg.msgtype, msg.msgdata)
 	}
 	return nil
 }
 
-func (l *Logger) logTextToOutputs(text string) {
+func (l *logger) logTextToOutputs(text string) {
 	l.sync.outsMtx.RLock()
 	defer l.sync.outsMtx.RUnlock()
 	for output, enabled := range l.outputs {
@@ -56,7 +57,7 @@ func (l *Logger) logTextToOutputs(text string) {
 	}
 }
 
-func (l *Logger) logData(output OutType, data []byte) (panicked bool, err error) {
+func (l *logger) logData(output outType, data []byte) (panicked bool, err error) {
 	// only returns of named result values can be changed by defer:
 	// https://bytegoblin.io/blog/golang-magic-modify-return-value-using-deferred-function
 	panicked = false
@@ -74,7 +75,7 @@ func (l *Logger) logData(output OutType, data []byte) (panicked bool, err error)
 	return
 }
 
-func (l *Logger) handleLogWriteError(errormsg string) {
+func (l *logger) handleLogWriteError(errormsg string) {
 	l.sync.outsMtx.RLock()
 	defer l.sync.outsMtx.RUnlock()
 	if l.fallbck != nil {

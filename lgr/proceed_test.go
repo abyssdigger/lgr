@@ -77,14 +77,14 @@ func TestLogger_logData(t *testing.T) {
 		wantErr bool
 		name    string // description of this test case
 		// Named input parameters for target function.
-		output OutType
+		output outType
 		data   []byte
 	}{
 		{false, false, "valid_output", foutput, []byte(testlogstr)},
 		{false, false, "empty_msg", foutput, []byte{}},
 		{false, false, "nil_msg", foutput, nil},
-		{false, true, "error_output", OutType(&ErrorWriter{}), []byte(testlogstr)},
-		{true, true, "panic_output", OutType(&PanicWriter{}), []byte(testlogstr)},
+		{false, true, "error_output", outType(&ErrorWriter{}), []byte(testlogstr)},
+		{true, true, "panic_output", outType(&PanicWriter{}), []byte(testlogstr)},
 		{true, true, "nil_output", nil, []byte(testlogstr)},
 	}
 	for _, tt := range tests {

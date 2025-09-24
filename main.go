@@ -31,11 +31,14 @@ func st1() {
 }
 
 func st2() {
-	var logger = lgr.InitWithParams(lgr.LVL_DEBUG, os.Stderr, os.Stdout) //...Default()
-	logger.Start(0)
-	c := logger.NewClient("A", "B", lgr.LVL_WARN)
-	c.LogE(lgr.LVL_ERROR, "<test>")
-	logger.StopAndWait()
+	var logger = lgr.InitAndStart(0) //...Default()
+	logger.SetMinLevel(lgr.LVL_UNKNOWN)
+	defer logger.StopAndWait()
+	c := logger.NewClient("A", lgr.LVL_UNMASKABLE)
+	for i := lgr.LVL_UNKNOWN; i <= lgr.LVL_UNMASKABLE; i++ {
+		c.Log(i, "<test>")
+	}
+	c.LogWarn("<test>")
 }
 
 const stage = 2
@@ -47,4 +50,7 @@ func main() {
 	case 2:
 		st2()
 	}
+	fmt.Println("\033[1m", "bold", "\033[0m", "\033[9m", "strike", "\033[0m", "\033[3m", "italic", "\033[0m")
+
+	fmt.Println("\033[37m", "white", "\033[1m", "\033[0;33m", "cYellow", "\033[0m", "\033[3;90m", "Gray", "\033[0m", "\033[1;90m", "Gray", "\033[0m")
 }
