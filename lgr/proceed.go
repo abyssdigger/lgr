@@ -26,11 +26,7 @@ func (l *logger) procced() {
 func (l *logger) proceedMsg(msg *logMessage) error {
 	switch msg.msgtype {
 	case MSG_LOG_TEXT:
-		if msg.msgclnt == nil {
-			l.logTextToOutputs(msg.msgdata)
-		} else {
-			l.logTextToOutputs(LogLevelDesc[msg.level].Short + " " + LogLevelDesc[msg.level].color + logstr("%s|%s", msg.msgclnt.name, msg.msgdata) + logTermReset)
-		}
+		l.logTextToOutputs(msg)
 	case MSG_FORBIDDEN:
 		// For testing purposes only
 		panic(fmt.Sprintf("panic on forbidden message type %d", msg.msgtype))
@@ -40,12 +36,12 @@ func (l *logger) proceedMsg(msg *logMessage) error {
 	return nil
 }
 
-func (l *logger) logTextToOutputs(text string) {
+func (l *logger) logTextToOutputs(msg *logMessage) {
 	l.sync.outsMtx.RLock()
 	defer l.sync.outsMtx.RUnlock()
 	for output, enabled := range l.outputs {
 		if enabled && output != nil {
-			panicked, err := l.logData(output, []byte(text+"\n"))
+			panicked, err := l.logData(output, []byte(msg.msgdata+"\n"))
 			if panicked {
 				// got panic writing, disable output
 				l.outputs[output] = false
@@ -76,8 +72,8 @@ func (l *logger) logData(output outType, data []byte) (panicked bool, err error)
 }
 
 func (l *logger) handleLogWriteError(errormsg string) {
-	l.sync.outsMtx.RLock()
-	defer l.sync.outsMtx.RUnlock()
+	l.sync.fbckMtx.RLock()
+	defer l.sync.fbckMtx.RUnlock()
 	if l.fallbck != nil {
 		fmt.Fprintln(l.fallbck, errormsg)
 	}

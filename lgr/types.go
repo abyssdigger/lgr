@@ -1,7 +1,6 @@
 package lgr
 
 import (
-	"fmt"
 	"io"
 	"sync"
 	"time"
@@ -21,26 +20,26 @@ const (
 	_LVL_MAX_FOR_CHECKS_ONLY
 )
 
-type llDesc struct {
+type logLevelDesc struct {
 	Short string
 	Long  string
 	color string
 }
 
-var LogLevelDesc map[logLevel]*llDesc
+var LogLevelDesc map[logLevel]*logLevelDesc
 
-const logTermReset = "\033[0m"
+//const logTermReset = "\033[0m"
 
 func init() {
-	LogLevelDesc = make(map[logLevel]*llDesc)
-	LogLevelDesc[LVL_UNKNOWN] = &llDesc{Short: "???", Long: "UNKNOWN"}
-	LogLevelDesc[LVL_TRACE] = &llDesc{Short: "TRC", Long: "TRACE"}
-	LogLevelDesc[LVL_DEBUG] = &llDesc{Short: "DBG", Long: "DEBUG"}
-	LogLevelDesc[LVL_INFO] = &llDesc{Short: "INF", Long: "INFO"}
-	LogLevelDesc[LVL_WARN] = &llDesc{Short: "WRN", Long: "WARN"}
-	LogLevelDesc[LVL_ERROR] = &llDesc{Short: "ERR", Long: "ERROR"}
-	LogLevelDesc[LVL_FATAL] = &llDesc{Short: "FTL", Long: "FATAL"}
-	LogLevelDesc[LVL_UNMASKABLE] = &llDesc{Short: "!!!", Long: "UNMASKABLE"}
+	LogLevelDesc = make(map[logLevel]*logLevelDesc)
+	LogLevelDesc[LVL_UNKNOWN] = &logLevelDesc{Short: "???", Long: "UNKNOWN"}
+	LogLevelDesc[LVL_TRACE] = &logLevelDesc{Short: "TRC", Long: "TRACE"}
+	LogLevelDesc[LVL_DEBUG] = &logLevelDesc{Short: "DBG", Long: "DEBUG"}
+	LogLevelDesc[LVL_INFO] = &logLevelDesc{Short: "INF", Long: "INFO"}
+	LogLevelDesc[LVL_WARN] = &logLevelDesc{Short: "WRN", Long: "WARN"}
+	LogLevelDesc[LVL_ERROR] = &logLevelDesc{Short: "ERR", Long: "ERROR"}
+	LogLevelDesc[LVL_FATAL] = &logLevelDesc{Short: "FTL", Long: "FATAL"}
+	LogLevelDesc[LVL_UNMASKABLE] = &logLevelDesc{Short: "!!!", Long: "UNMASKABLE"}
 	//https://habr.com/ru/companies/first/articles/672464/?ysclid=mfy8zz61fw842674829
 	LogLevelDesc[LVL_UNKNOWN].color = "\033[9;90m"
 	LogLevelDesc[LVL_TRACE].color = "\033[2;90m"
@@ -98,6 +97,7 @@ type clients map[*logClient]logLevel
 type logger struct {
 	sync struct {
 		statMtx sync.RWMutex
+		fbckMtx sync.RWMutex
 		outsMtx sync.RWMutex
 		chngMtx sync.RWMutex
 		clntMtx sync.RWMutex
@@ -107,7 +107,6 @@ type logger struct {
 	outputs outList
 	fallbck outType
 	channel chan logMessage
-	timefmt string
 	state   lgrState
 	level   logLevel
 }
@@ -128,6 +127,6 @@ func normLevel(level logLevel) logLevel {
 	return norm_uint8(level, _LVL_MAX_FOR_CHECKS_ONLY, _LVL_MAX_FOR_CHECKS_ONLY-1)
 }
 
-func logstr(format, prefix, text string) string {
+/*func logstr(format, prefix, text string) string {
 	return fmt.Sprintf(format, prefix, text)
-}
+}*/

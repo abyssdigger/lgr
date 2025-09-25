@@ -1,6 +1,10 @@
 package lgr
 
-import "io"
+import (
+	"fmt"
+	"io"
+	"time"
+)
 
 func (l *logger) NewClient(name string, maxLevel logLevel) *logClient {
 	client := &logClient{
@@ -19,22 +23,33 @@ func (l *logger) DelClient(lc *logClient) {
 }
 
 func (lc *logClient) LogE(level logLevel, s string) (err error) {
-	if level <= lc.maxLevel {
-		return lc.logger.LogC(lc, level, s)
-	} else {
-		return nil
+	l := lc.logger
+	if l == nil {
+		return fmt.Errorf("logger is nil")
 	}
-}
-
-func (lc *logClient) Lvl(level logLevel) *logClient {
-	lc.logger.Log(LVL_WARN, "client test")
-	return lc
-}
-
-func (lc *logClient) Write(p []byte) (n int, err error) {
-	err = lc.LogE(lc.curLevel, string(p))
-	if err == nil {
-		n = len(p)
+	if l.level >= _LVL_MAX_FOR_CHECKS_ONLY {
+		//For testing purposes only, should never happen in real code
+		//because SetLogLevel() prevents setting invalid levels
+		panic("panic on forbidden log level")
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("panic [%v]", r)
+		}
+	}()
+	if level > lc.maxLevel || level < l.level {
+		return
+	}
+	l.sync.statMtx.RLock()
+	defer l.sync.statMtx.RUnlock()
+	if !l.IsActive() {
+		return fmt.Errorf("logger is not active")
+	} else {
+		if l.channel == nil {
+			return fmt.Errorf("logger channel is nil")
+		}
+		// will panic if channel is closed (with recover and setting error)
+		l.channel <- logMessage{level: level, msgclnt: lc, msgtime: time.Now(), msgtype: MSG_LOG_TEXT, msgdata: s}
 	}
 	return
 }
@@ -64,4 +79,21 @@ func (lc *logClient) LogError(s string) {
 
 func (lc *logClient) LogErr(e error) {
 	lc.Log(LVL_ERROR, e.Error())
+}
+
+// io.Writer interface implementation (just to exist)
+// * common usage: fmt.Fprintf(C.Lvl(LVL_WARN), "warning: %s happened in module %s", text, modulename)
+// * with preset curLevel: fmt.Fprintf(C, "something %s in %s", text, somewhere)
+
+func (lc *logClient) Lvl(level logLevel) *logClient {
+	lc.curLevel = level
+	return lc
+}
+
+func (lc *logClient) Write(p []byte) (n int, err error) {
+	err = lc.LogE(lc.curLevel, string(p))
+	if err == nil {
+		n = len(p)
+	}
+	return
 }

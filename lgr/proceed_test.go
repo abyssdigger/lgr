@@ -137,47 +137,42 @@ func TestLogger_handleLogWriteError(t *testing.T) {
 }
 
 func TestLogger_logTextToOutputs(t *testing.T) {
-	var s string
+	msg := &logMessage{msgdata: "Test data"}
 	out1 := &FakeWriter{}
 	out2 := &FakeWriter{}
 	ferr := &FakeWriter{}
 	t.Run("one_out", func(t *testing.T) {
 		out1.Clear()
 		l := InitWithParams(LVL_TRACE, nil, out1)
-		s = "Write to 1 output"
-		l.logTextToOutputs(s)
-		assert.Equal(t, s+"\n", out1.String())
+		l.logTextToOutputs(msg)
+		assert.Equal(t, msg.msgdata+"\n", out1.String())
 	})
 	t.Run("two_outs", func(t *testing.T) {
 		out1.Clear()
 		out2.Clear()
 		l := InitWithParams(LVL_TRACE, nil, out1, out2)
-		s = "Write to 2 outputs"
-		l.logTextToOutputs(s)
-		assert.Equal(t, s+"\n", out1.String())
-		assert.Equal(t, s+"\n", out2.String())
+		l.logTextToOutputs(msg)
+		assert.Equal(t, msg.msgdata+"\n", out1.String())
+		assert.Equal(t, msg.msgdata+"\n", out2.String())
 	})
 	t.Run("no_outputs_no_fallback", func(t *testing.T) {
 		l := InitWithParams(LVL_TRACE, nil)
-		s = "Write to no outputs, no fallback"
 		assert.NotPanics(t, func() {
-			l.logTextToOutputs(s)
+			l.logTextToOutputs(msg)
 		}, "Panic on write to nil outputs and nil fallback")
 	})
 	t.Run("no_outputs", func(t *testing.T) {
 		ferr.Clear()
 		l := InitWithParams(LVL_TRACE, ferr)
-		s = "Write to no outputs"
 		assert.NotPanics(t, func() {
-			l.logTextToOutputs(s)
+			l.logTextToOutputs(msg)
 		}, "Panic on write to nil outputs")
 		assert.Equal(t, "", ferr.String())
 	})
 	t.Run("nil_outs", func(t *testing.T) {
 		l := InitWithParams(LVL_TRACE, ferr, nil, nil)
-		s = "Write to 2 nil outputs"
 		assert.NotPanics(t, func() {
-			l.logTextToOutputs(s)
+			l.logTextToOutputs(msg)
 		}, "Panic on write to nil outputs")
 	})
 	t.Run("with_panic", func(t *testing.T) {
@@ -185,10 +180,9 @@ func TestLogger_logTextToOutputs(t *testing.T) {
 		out2.Clear()
 		ferr.Clear()
 		l := InitWithParams(LVL_TRACE, ferr, out1, &PanicWriter{}, out2)
-		s = "Write to 2 outputs and 1 panic"
-		l.logTextToOutputs(s)
-		assert.Equal(t, s+"\n", out1.String())
-		assert.Equal(t, s+"\n", out2.String())
+		l.logTextToOutputs(msg)
+		assert.Equal(t, msg.msgdata+"\n", out1.String())
+		assert.Equal(t, msg.msgdata+"\n", out2.String())
 		assert.Contains(t, ferr.String(), panicStr+"\n")
 	})
 	t.Run("with_error", func(t *testing.T) {
@@ -196,10 +190,9 @@ func TestLogger_logTextToOutputs(t *testing.T) {
 		out2.Clear()
 		ferr.Clear()
 		l := InitWithParams(LVL_TRACE, ferr, out1, &ErrorWriter{}, out2)
-		s = "Write to 2 outputs and 1 error"
-		l.logTextToOutputs(s)
-		assert.Equal(t, s+"\n", out1.String())
-		assert.Equal(t, s+"\n", out2.String())
+		l.logTextToOutputs(msg)
+		assert.Equal(t, msg.msgdata+"\n", out1.String())
+		assert.Equal(t, msg.msgdata+"\n", out2.String())
 		assert.Contains(t, ferr.String(), errorStr+"\n")
 	})
 	t.Run("with_both", func(t *testing.T) {
@@ -207,10 +200,9 @@ func TestLogger_logTextToOutputs(t *testing.T) {
 		out2.Clear()
 		ferr.Clear()
 		l := InitWithParams(LVL_TRACE, ferr, out1, &ErrorWriter{}, &PanicWriter{}, out2)
-		s = "Write to 2 outputs, 1 error and 1 panic"
-		l.logTextToOutputs(s)
-		assert.Equal(t, s+"\n", out1.String())
-		assert.Equal(t, s+"\n", out2.String())
+		l.logTextToOutputs(msg)
+		assert.Equal(t, msg.msgdata+"\n", out1.String())
+		assert.Equal(t, msg.msgdata+"\n", out2.String())
 		assert.Contains(t, ferr.String(), errorStr+"\n")
 		assert.Contains(t, ferr.String(), panicStr+"\n")
 	})
@@ -218,22 +210,20 @@ func TestLogger_logTextToOutputs(t *testing.T) {
 		out1.Clear()
 		out2.Clear()
 		l := InitWithParams(LVL_TRACE, nil, out1, &ErrorWriter{}, &PanicWriter{}, out2)
-		s = "Write to 2 outputs, 1 error and 1 panic, no fallback"
 		assert.NotPanics(t, func() {
-			l.logTextToOutputs(s)
+			l.logTextToOutputs(msg)
 		}, "Panic on write to nil fallback")
-		assert.Equal(t, s+"\n", out1.String())
-		assert.Equal(t, s+"\n", out2.String())
+		assert.Equal(t, msg.msgdata+"\n", out1.String())
+		assert.Equal(t, msg.msgdata+"\n", out2.String())
 	})
 	t.Run("all_disabled", func(t *testing.T) {
 		out1.Clear()
 		out2.Clear()
 		ferr.Clear()
 		l := InitWithParams(LVL_TRACE, ferr, out1, out2)
-		s = "Write to 2 disabled outputs"
 		l.outputs[out1] = false
 		l.outputs[out2] = false
-		l.logTextToOutputs(s)
+		l.logTextToOutputs(msg)
 		assert.Equal(t, "", out1.String())
 		assert.Equal(t, "", out2.String())
 		assert.Equal(t, "", ferr.String())
@@ -243,11 +233,10 @@ func TestLogger_logTextToOutputs(t *testing.T) {
 		out2.Clear()
 		ferr.Clear()
 		l := InitWithParams(LVL_TRACE, ferr, out1, out2)
-		s = "Write to 1 enabled output"
 		l.outputs[out1] = true
 		l.outputs[out2] = false
-		l.logTextToOutputs(s)
-		assert.Equal(t, s+"\n", out1.String())
+		l.logTextToOutputs(msg)
+		assert.Equal(t, msg.msgdata+"\n", out1.String())
 		assert.Equal(t, "", out2.String())
 		assert.Equal(t, "", ferr.String())
 	})

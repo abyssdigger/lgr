@@ -14,8 +14,9 @@ func st1() {
 	for i := 1; i <= len(outs); i++ {
 		logger.Start(32)
 		logger.AddOutputs(outs[i-1])
+		lclient := logger.NewClient("", lgr.LVL_UNMASKABLE)
 		for j := 0; j < 10; j++ {
-			err := logger.LogE(lgr.LVL_DEBUG, "LOG! #"+fmt.Sprint(j+1))
+			err := lclient.LogE(lgr.LVL_DEBUG, "LOG! #"+fmt.Sprint(j+1))
 			if err != nil {
 				fmt.Println("Error:", err)
 			} else {
