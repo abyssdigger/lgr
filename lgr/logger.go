@@ -8,14 +8,14 @@ import (
 	"slices"
 )
 
-func InitAndStart(buffsize int) (l *logger) {
-	l = Init()
+func InitAndStart(buffsize int, outputs ...outType) (l *logger) {
+	l = Init(outputs...)
 	l.Start(buffsize)
 	return
 }
 
-func Init() *logger {
-	return InitWithParams(DEFAULT_LOG_LEVEL, os.Stderr, os.Stdout) //DEFAULT_BUFF_SIZE?
+func Init(outputs ...outType) *logger {
+	return InitWithParams(DEFAULT_LOG_LEVEL, os.Stderr, outputs...) //DEFAULT_BUFF_SIZE?
 }
 
 func InitWithParams(level logLevel, fallback outType, outputs ...outType) *logger {

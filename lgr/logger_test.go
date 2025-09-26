@@ -270,11 +270,55 @@ func TestInitWithParams(t *testing.T) {
 
 func TestInit(t *testing.T) {
 	t.Run("default", func(t *testing.T) {
-		l := Init()
-		assert.Equal(t, STATE_STOPPED, l.state, "wrong state after init")
-		assert.Equal(t, DEFAULT_LOG_LEVEL, l.level, "wrong level after init")
-		assert.Equal(t, 1, len(l.outputs), "wrong outputs count after init")
-		assert.Contains(t, l.outputs, os.Stdout, "missing default output after init")
-		assert.Equal(t, os.Stderr, l.fallbck, "wrong fallback after init")
+		var l *logger
+		out1 := os.Stdout
+		assert.NotPanics(t, func() {
+			l = Init(out1)
+			l.Start(0)
+			l.StopAndWait()
+		})
+		assert.Equal(t, STATE_STOPPED, l.state, "wrong state")
+		assert.Equal(t, DEFAULT_LOG_LEVEL, l.level, "wrong log level")
+		assert.Equal(t, 1, len(l.outputs), "wrong outputs count")
+		assert.Contains(t, l.outputs, out1, "wrong output")
+		assert.Equal(t, os.Stderr, l.fallbck, "wrong fallback")
+	})
+	t.Run("nil_output", func(t *testing.T) {
+		var l *logger
+		assert.NotPanics(t, func() {
+			l = Init(nil)
+			l.Start(0)
+			l.StopAndWait()
+		})
+		assert.Empty(t, l.outputs, "outputs exist")
+		assert.Equal(t, DEFAULT_LOG_LEVEL, l.level, "wrong log level")
+		assert.Equal(t, os.Stderr, l.fallbck, "wrong fallback")
+	})
+	t.Run("empty_output", func(t *testing.T) {
+		var l *logger
+		assert.NotPanics(t, func() {
+			l = Init([]outType{}...)
+			l.Start(0)
+			l.StopAndWait()
+		})
+		assert.Empty(t, l.outputs, "outputs exist")
+		assert.Equal(t, DEFAULT_LOG_LEVEL, l.level, "wrong log level")
+		assert.Equal(t, os.Stderr, l.fallbck, "wrong fallback")
+	})
+}
+
+func TestInitAndStart(t *testing.T) {
+	t.Run("default", func(t *testing.T) {
+		var l *logger
+		out1 := os.Stdout
+		assert.NotPanics(t, func() {
+			l = InitAndStart(DEFAULT_BUFF_SIZE, out1)
+			l.StopAndWait()
+		})
+		assert.Equal(t, STATE_STOPPED, l.state, "wrong state")
+		assert.Equal(t, DEFAULT_LOG_LEVEL, l.level, "wrong log level")
+		assert.Equal(t, 1, len(l.outputs), "wrong outputs count")
+		assert.Contains(t, l.outputs, out1, "wrong output")
+		assert.Equal(t, os.Stderr, l.fallbck, "wrong fallback")
 	})
 }

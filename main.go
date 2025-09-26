@@ -42,7 +42,7 @@ func st2() {
 	c.LogWarn("<test>")
 }
 
-const stage = 2
+const stage = 1
 
 func main() {
 	switch stage {
