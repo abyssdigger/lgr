@@ -1,34 +1,11 @@
 package lgr
 
 import (
-	"errors"
 	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
-
-const panicStr = "panic generated in writer"
-const errorStr = "error generated in writer"
-
-type PanicWriter struct{}
-
-func (p *PanicWriter) Write(b []byte) (int, error) { panic(panicStr) }
-
-type ErrorWriter struct{}
-
-func (e *ErrorWriter) Write(b []byte) (int, error) { return 0, errors.New(errorStr) }
-
-type FakeWriter struct {
-	buffer []byte
-}
-
-func (f *FakeWriter) Write(b []byte) (int, error) {
-	f.buffer = append(f.buffer, b...)
-	return len(b), nil
-}
-func (f *FakeWriter) String() string { return string(f.buffer) }
-func (f *FakeWriter) Clear()         { f.buffer = f.buffer[:0] }
 
 func TestLogger_proceedMsg(t *testing.T) {
 	tests := []struct {

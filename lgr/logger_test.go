@@ -1,6 +1,7 @@
 package lgr
 
 import (
+	"errors"
 	"io"
 	"os"
 	"strconv"
@@ -10,6 +11,80 @@ import (
 )
 
 const testlogstr = "Test log АБВ こんにちは, 世界!`'\u00e9\"\\\x5A\254\n\a\b\t\f\r\v"
+const panicStr = "panic generated in writer"
+const errorStr = "error generated in writer"
+
+type PanicWriter struct{}
+
+func (p *PanicWriter) Write(b []byte) (int, error) { panic(panicStr) }
+
+type ErrorWriter struct{}
+
+func (e *ErrorWriter) Write(b []byte) (int, error) { return 0, errors.New(errorStr) }
+
+type FakeWriter struct {
+	buffer []byte
+}
+
+func (f *FakeWriter) Write(b []byte) (int, error) {
+	f.buffer = append(f.buffer, b...)
+	return len(b), nil
+}
+func (f *FakeWriter) String() string { return string(f.buffer) }
+func (f *FakeWriter) Clear()         { f.buffer = f.buffer[:0] }
+
+func Test_logger_AddOutputs(t *testing.T) {
+	var l *logger
+	t.Run("add_1_16", func(t *testing.T) {
+		for i := range 16 {
+			outs := []outType{}
+			for range i + 1 {
+				outs = append(outs, &FakeWriter{})
+			}
+			assert.NotPanics(t, func() {
+				l = Init()
+				lres := l.AddOutputs(outs...)
+				assert.Equal(t, l, lres, "result is another logger")
+			})
+			assert.Equal(t, len(outs), len(l.outputs), "wrong outputs quantity")
+		}
+	})
+	t.Run("add_3clones_1_16", func(t *testing.T) {
+		for i := range 16 {
+			outs := []outType{}
+			for range i + 1 {
+				out := &FakeWriter{}
+				outs = append(outs, out, out, out)
+			}
+			assert.NotPanics(t, func() {
+				l = Init()
+				lres := l.AddOutputs(outs...)
+				assert.Equal(t, l, lres, "result is another logger")
+			})
+			assert.Equal(t, len(outs)/3, len(l.outputs), "wrong outputs quantity")
+		}
+	})
+	t.Run("add_empties", func(t *testing.T) {
+		assert.NotPanics(t, func() {
+			l = Init()
+			for range 16 {
+				lres := l.AddOutputs([]outType{}...)
+				assert.Equal(t, l, lres, "result is another logger")
+			}
+		})
+		assert.Empty(t, l.outputs, "outputs exixts")
+	})
+	t.Run("add_nils", func(t *testing.T) {
+		assert.NotPanics(t, func() {
+			l = Init()
+			for range 16 {
+				lres := l.AddOutputs(nil)
+				assert.Equal(t, l, lres, "result is another logger")
+			}
+		})
+		assert.Empty(t, l.outputs, "outputs exixts")
+	})
+}
 
 func TestLogger_ClearOutputs(t *testing.T) {
 	tests := []struct {
@@ -26,8 +101,9 @@ func TestLogger_ClearOutputs(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			l := InitWithParams(LVL_TRACE, io.Discard, tt.outputs...)
-			l.ClearOutputs()
+			lres := l.ClearOutputs()
 			assert.Equal(t, 0, len(l.outputs))
+			assert.Equal(t, l, lres, "result is another logger")
 		})
 	}
 }
@@ -63,8 +139,9 @@ func TestLogger_RemoveOutputs(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			l := InitWithParams(LVL_TRACE, io.Discard, tt.outputs...)
-			l.RemoveOutputs(tt.removes...)
+			lres := l.RemoveOutputs(tt.removes...)
 			assert.Equal(t, tt.wants, len(l.outputs))
+			assert.Equal(t, l, lres, "result is another logger")
 		})
 	}
 }
@@ -83,8 +160,9 @@ func TestLogger_SetFallback(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			l := InitWithParams(LVL_TRACE, io.Discard, tt.fallback, nil)
-			l.SetFallback(tt.fallback)
+			lres := l.SetFallback(tt.fallback)
 			assert.Equal(t, tt.wants, l.fallbck)
+			assert.Equal(t, l, lres, "result is another logger")
 		})
 	}
 }
@@ -105,12 +183,13 @@ func TestLogger_SetLogLevel(t *testing.T) {
 	rng := 255
 	t.Run("only_valid_from_255", func(t *testing.T) {
 		for i := range rng {
-			l.SetMinLevel(logLevel(i))
+			lres := l.SetMinLevel(logLevel(i))
 			res := logLevel(i)
 			if res >= _LVL_MAX_FOR_CHECKS_ONLY {
 				res = _LVL_MAX_FOR_CHECKS_ONLY - 1
 			}
 			assert.Equal(t, res, l.level)
+			assert.Equal(t, l, lres, "result is another logger")
 		}
 	})
 }
