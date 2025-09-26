@@ -40,6 +40,7 @@ func (lc *logClient) LogE(level logLevel, s string) (err error) {
 	if level > lc.maxLevel || level < l.level {
 		return
 	}
+	t := time.Now()
 	l.sync.statMtx.RLock()
 	defer l.sync.statMtx.RUnlock()
 	if !l.IsActive() {
@@ -49,7 +50,7 @@ func (lc *logClient) LogE(level logLevel, s string) (err error) {
 			return fmt.Errorf("logger channel is nil")
 		}
 		// will panic if channel is closed (with recover and setting error)
-		l.channel <- logMessage{level: level, msgclnt: lc, msgtime: time.Now(), msgtype: MSG_LOG_TEXT, msgdata: s}
+		l.channel <- logMessage{level: level, msgclnt: lc, msgtime: t, msgtype: MSG_LOG_TEXT, msgdata: s}
 	}
 	return
 }

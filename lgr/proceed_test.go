@@ -198,8 +198,8 @@ func TestLogger_logTextToOutputs(t *testing.T) {
 		out2.Clear()
 		ferr.Clear()
 		l := InitWithParams(LVL_TRACE, ferr, out1, out2)
-		l.outputs[out1] = false
-		l.outputs[out2] = false
+		l.outputs[out1].enabled = false
+		l.outputs[out2].enabled = false
 		l.logTextToOutputs(msg)
 		assert.Equal(t, "", out1.String())
 		assert.Equal(t, "", out2.String())
@@ -210,8 +210,8 @@ func TestLogger_logTextToOutputs(t *testing.T) {
 		out2.Clear()
 		ferr.Clear()
 		l := InitWithParams(LVL_TRACE, ferr, out1, out2)
-		l.outputs[out1] = true
-		l.outputs[out2] = false
+		l.outputs[out1].enabled = true
+		l.outputs[out2].enabled = false
 		l.logTextToOutputs(msg)
 		assert.Equal(t, msg.msgdata+"\n", out1.String())
 		assert.Equal(t, "", out2.String())

@@ -13,7 +13,7 @@ func st1() {
 	outs := [...]io.Writer{nil, os.Stdout, nil, os.Stderr, os.Stdout}
 	for i := 1; i <= len(outs); i++ {
 		logger.Start(32)
-		logger.AddOutputs(outs[i-1])
+		logger.AddOutputs(lgr.PrefixesShort(), outs[i-1])
 		lclient := logger.NewClient("", lgr.LVL_UNMASKABLE)
 		for j := 0; j < 10; j++ {
 			err := lclient.LogE(lgr.LVL_DEBUG, "LOG! #"+fmt.Sprint(j+1))
@@ -51,7 +51,10 @@ func main() {
 	case 2:
 		st2()
 	}
+
 	fmt.Println("\033[1m", "bold", "\033[0m", "\033[9m", "strike", "\033[0m", "\033[3m", "italic", "\033[0m")
 
 	fmt.Println("\033[37m", "white", "\033[1m", "\033[0;33m", "cYellow", "\033[0m", "\033[3;90m", "Gray", "\033[0m", "\033[1;90m", "Gray", "\033[0m")
+
+	fmt.Println("\033[01;03;38;05;222;48;05;22m", "yellow italic on green", "\033[0m")
 }

@@ -39,12 +39,12 @@ func (l *logger) proceedMsg(msg *logMessage) error {
 func (l *logger) logTextToOutputs(msg *logMessage) {
 	l.sync.outsMtx.RLock()
 	defer l.sync.outsMtx.RUnlock()
-	for output, enabled := range l.outputs {
-		if enabled && output != nil {
+	for output, settings := range l.outputs {
+		if settings.enabled && output != nil {
 			panicked, err := l.logData(output, []byte(msg.msgdata+"\n"))
 			if panicked {
 				// got panic writing, disable output
-				l.outputs[output] = false
+				l.outputs[output].enabled = false
 			}
 			if err != nil {
 				l.handleLogWriteError(err.Error())

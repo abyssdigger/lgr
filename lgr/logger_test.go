@@ -43,7 +43,7 @@ func Test_logger_AddOutputs(t *testing.T) {
 			}
 			assert.NotPanics(t, func() {
 				l = Init()
-				lres := l.AddOutputs(outs...)
+				lres := l.AddOutputs(nil, outs...)
 				assert.Equal(t, l, lres, "result is another logger")
 			})
 			assert.Equal(t, len(outs), len(l.outputs), "wrong outputs quantity")
@@ -58,7 +58,7 @@ func Test_logger_AddOutputs(t *testing.T) {
 			}
 			assert.NotPanics(t, func() {
 				l = Init()
-				lres := l.AddOutputs(outs...)
+				lres := l.AddOutputs(nil, outs...)
 				assert.Equal(t, l, lres, "result is another logger")
 			})
 			assert.Equal(t, len(outs)/3, len(l.outputs), "wrong outputs quantity")
@@ -68,7 +68,7 @@ func Test_logger_AddOutputs(t *testing.T) {
 		assert.NotPanics(t, func() {
 			l = Init()
 			for range 16 {
-				lres := l.AddOutputs([]outType{}...)
+				lres := l.AddOutputs(nil, []outType{}...)
 				assert.Equal(t, l, lres, "result is another logger")
 			}
 		})
@@ -78,7 +78,7 @@ func Test_logger_AddOutputs(t *testing.T) {
 		assert.NotPanics(t, func() {
 			l = Init()
 			for range 16 {
-				lres := l.AddOutputs(nil)
+				lres := l.AddOutputs(nil, nil)
 				assert.Equal(t, l, lres, "result is another logger")
 			}
 		})

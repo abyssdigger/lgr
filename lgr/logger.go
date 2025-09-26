@@ -25,7 +25,7 @@ func InitWithParams(level logLevel, fallback outType, outputs ...outType) *logge
 	l.clients = clients{}
 	l.SetMinLevel(level)
 	l.SetFallback(fallback)
-	l.AddOutputs(outputs...)
+	l.AddOutputs(nil, outputs...)
 	return l
 }
 
@@ -84,8 +84,28 @@ func (l *logger) IsActive() bool {
 	return l.state == STATE_ACTIVE
 }
 
-func (l *logger) AddOutputs(outputs ...outType) *logger {
-	l.operateOutputs(outputs, func(m outList, k outType) { m[k] = true })
+func (l *logger) AddOutputWithDecoration(output outType, timeformat string, colormap, prefixes *lvlStringMap, delimiter string) *logger {
+	l.operateOutputs([]outType{output}, func(m outList, k outType) {
+		m[k] = &outDecoration{
+			ansicolormap: colormap,
+			lvlprefixmap: prefixes,
+			delimiter:    delimiter,
+			timeformat:   timeformat,
+			enabled:      true,
+		}
+	})
+	pf := PrefixesShort()
+	fmt.Printf("%v\n", pf == defaultShortPrefixes)
+	return l
+}
+
+func (l *logger) AddOutputs(prefixmap *lvlStringMap, outputs ...outType) *logger {
+	l.operateOutputs(outputs, func(m outList, k outType) {
+		m[k] = &outDecoration{
+			lvlprefixmap: prefixmap,
+			enabled:      true,
+		}
+	})
 	return l
 }
 
