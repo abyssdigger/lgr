@@ -269,7 +269,7 @@ func TestInitWithParams(t *testing.T) {
 }
 
 func TestInit(t *testing.T) {
-	t.Run("default", func(t *testing.T) {
+	t.Run("explicit_params", func(t *testing.T) {
 		var l *logger
 		out1 := os.Stdout
 		assert.NotPanics(t, func() {
@@ -308,17 +308,36 @@ func TestInit(t *testing.T) {
 }
 
 func TestInitAndStart(t *testing.T) {
-	t.Run("default", func(t *testing.T) {
+	t.Run("explicit_params", func(t *testing.T) {
 		var l *logger
 		out1 := os.Stdout
 		assert.NotPanics(t, func() {
 			l = InitAndStart(DEFAULT_BUFF_SIZE, out1)
-			l.StopAndWait()
 		})
-		assert.Equal(t, STATE_STOPPED, l.state, "wrong state")
+		assert.Equal(t, DEFAULT_BUFF_SIZE, cap(l.channel))
+		assert.Equal(t, STATE_ACTIVE, l.state, "wrong active state")
 		assert.Equal(t, DEFAULT_LOG_LEVEL, l.level, "wrong log level")
 		assert.Equal(t, 1, len(l.outputs), "wrong outputs count")
 		assert.Contains(t, l.outputs, out1, "wrong output")
 		assert.Equal(t, os.Stderr, l.fallbck, "wrong fallback")
+		assert.NotPanics(t, func() {
+			l.StopAndWait()
+		})
+		assert.Equal(t, STATE_STOPPED, l.state, "wrong stopped state")
+	})
+	t.Run("min_params", func(t *testing.T) {
+		var l *logger
+		assert.NotPanics(t, func() {
+			l = InitAndStart(-1)
+		})
+		assert.Equal(t, DEFAULT_BUFF_SIZE, cap(l.channel))
+		assert.Equal(t, STATE_ACTIVE, l.state, "wrong active state")
+		assert.Equal(t, DEFAULT_LOG_LEVEL, l.level, "wrong log level")
+		assert.Empty(t, l.outputs, "outputs exist")
+		assert.Equal(t, os.Stderr, l.fallbck, "wrong fallback")
+		assert.NotPanics(t, func() {
+			l.StopAndWait()
+		})
+		assert.Equal(t, STATE_STOPPED, l.state, "wrong stopped state")
 	})
 }
