@@ -11,28 +11,28 @@ type logMessage struct {
 	msgtime time.Time
 	msgdata string
 	msgtype msgType
-	level   logLevel
+	level   LogLevel
 }
 
 type logClient struct {
 	logger   *logger
 	name     string
-	maxLevel logLevel
-	curLevel logLevel
+	maxLevel LogLevel
+	curLevel LogLevel
 }
 
 type outType io.Writer
 type outDecoration struct {
-	ansicolormap *lvlStringMap // logLevel-associated ANSI terminal color
-	lvlprefixmap *lvlStringMap // logLevel-associated prefix
-	delimiter    string        // to be added after prefix (usualy used ":")
-	timeformat   string        // no timestamp on ""
+	ansicolormap *LevelMap // logLevel-associated ANSI terminal color
+	lvlprefixmap *LevelMap // logLevel-associated prefix
+	delimiter    string    // to be added after prefix (usualy used ":")
+	timeformat   string    // no timestamp on ""
+	showlvlnum   bool      // Show [<msg.level>] (after time)
 	enabled      bool
 }
 type outList map[outType]*outDecoration
-type lvlStringMap map[logLevel]string //use [nil] as default value
 
-type clients map[*logClient]logLevel
+type clients map[*logClient]LogLevel
 
 type logger struct {
 	sync struct {
@@ -48,5 +48,14 @@ type logger struct {
 	fallbck outType
 	channel chan logMessage
 	state   lgrState
-	level   logLevel
+	level   LogLevel
 }
+
+type DefaultShrtLvlNames interface {
+	outType
+}
+
+type DefaultFullLvlNames outType
+type DefaultColorOnBlack outType
+
+type Writerval interface{ io.Writer }

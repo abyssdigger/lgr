@@ -43,7 +43,7 @@ func Test_logger_AddOutputs(t *testing.T) {
 			}
 			assert.NotPanics(t, func() {
 				l = Init()
-				lres := l.AddOutputs(nil, outs...)
+				lres := l.AddOutputs(outs...)
 				assert.Equal(t, l, lres, "result is another logger")
 			})
 			assert.Equal(t, len(outs), len(l.outputs), "wrong outputs quantity")
@@ -58,7 +58,7 @@ func Test_logger_AddOutputs(t *testing.T) {
 			}
 			assert.NotPanics(t, func() {
 				l = Init()
-				lres := l.AddOutputs(nil, outs...)
+				lres := l.AddOutputs(outs...)
 				assert.Equal(t, l, lres, "result is another logger")
 			})
 			assert.Equal(t, len(outs)/3, len(l.outputs), "wrong outputs quantity")
@@ -68,7 +68,7 @@ func Test_logger_AddOutputs(t *testing.T) {
 		assert.NotPanics(t, func() {
 			l = Init()
 			for range 16 {
-				lres := l.AddOutputs(nil, []outType{}...)
+				lres := l.AddOutputs([]outType{}...)
 				assert.Equal(t, l, lres, "result is another logger")
 			}
 		})
@@ -78,7 +78,7 @@ func Test_logger_AddOutputs(t *testing.T) {
 		assert.NotPanics(t, func() {
 			l = Init()
 			for range 16 {
-				lres := l.AddOutputs(nil, nil)
+				lres := l.AddOutputs(nil)
 				assert.Equal(t, l, lres, "result is another logger")
 			}
 		})
@@ -183,8 +183,8 @@ func TestLogger_SetLogLevel(t *testing.T) {
 	rng := 255
 	t.Run("only_valid_from_255", func(t *testing.T) {
 		for i := range rng {
-			lres := l.SetMinLevel(logLevel(i))
-			res := logLevel(i)
+			lres := l.SetMinLevel(LogLevel(i))
+			res := LogLevel(i)
 			if res >= _LVL_MAX_FOR_CHECKS_ONLY {
 				res = _LVL_MAX_FOR_CHECKS_ONLY - 1
 			}
@@ -231,7 +231,7 @@ func TestLogger_Start(t *testing.T) {
 		l := Init()
 		err := l.Start(-10)
 		assert.Nil(t, err, "error with negative buffsize")
-		assert.Equal(t, cap(l.channel), DEFAULT_BUFF_SIZE, "wrong channel capacity")
+		assert.Equal(t, cap(l.channel), DEFAULT_MSG_BUFF, "wrong channel capacity")
 		l.StopAndWait()
 	})
 }
@@ -391,9 +391,9 @@ func TestInitAndStart(t *testing.T) {
 		var l *logger
 		out1 := os.Stdout
 		assert.NotPanics(t, func() {
-			l = InitAndStart(DEFAULT_BUFF_SIZE, out1)
+			l = InitAndStart(DEFAULT_MSG_BUFF, out1)
 		})
-		assert.Equal(t, DEFAULT_BUFF_SIZE, cap(l.channel))
+		assert.Equal(t, DEFAULT_MSG_BUFF, cap(l.channel))
 		assert.Equal(t, STATE_ACTIVE, l.state, "wrong active state")
 		assert.Equal(t, DEFAULT_LOG_LEVEL, l.level, "wrong log level")
 		assert.Equal(t, 1, len(l.outputs), "wrong outputs count")
@@ -409,7 +409,7 @@ func TestInitAndStart(t *testing.T) {
 		assert.NotPanics(t, func() {
 			l = InitAndStart(-1)
 		})
-		assert.Equal(t, DEFAULT_BUFF_SIZE, cap(l.channel))
+		assert.Equal(t, DEFAULT_MSG_BUFF, cap(l.channel))
 		assert.Equal(t, STATE_ACTIVE, l.state, "wrong active state")
 		assert.Equal(t, DEFAULT_LOG_LEVEL, l.level, "wrong log level")
 		assert.Empty(t, l.outputs, "outputs exist")

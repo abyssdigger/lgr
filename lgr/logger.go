@@ -15,17 +15,17 @@ func InitAndStart(buffsize int, outputs ...outType) (l *logger) {
 }
 
 func Init(outputs ...outType) *logger {
-	return InitWithParams(DEFAULT_LOG_LEVEL, os.Stderr, outputs...) //DEFAULT_BUFF_SIZE?
+	return InitWithParams(DEFAULT_LOG_LEVEL, os.Stderr, outputs...)
 }
 
-func InitWithParams(level logLevel, fallback outType, outputs ...outType) *logger {
+func InitWithParams(level LogLevel, fallback outType, outputs ...outType) *logger {
 	l := new(logger)
 	l.state = STATE_STOPPED
 	l.outputs = outList{}
 	l.clients = clients{}
 	l.SetMinLevel(level)
 	l.SetFallback(fallback)
-	l.AddOutputs(nil, outputs...)
+	l.AddOutputs(outputs...)
 	return l
 }
 
@@ -36,7 +36,7 @@ func (l *logger) Start(buffsize int) error {
 		return fmt.Errorf("logger is allready started")
 	}
 	if buffsize <= 0 {
-		buffsize = DEFAULT_BUFF_SIZE
+		buffsize = DEFAULT_MSG_BUFF
 	}
 	l.channel = make(chan logMessage, buffsize)
 	l.sync.waitEnd.Go(func() { l.procced() })
@@ -62,7 +62,7 @@ func (l *logger) StopAndWait() {
 	l.Wait()
 }
 
-func (l *logger) SetMinLevel(minlevel logLevel) *logger {
+func (l *logger) SetMinLevel(minlevel LogLevel) *logger {
 	l.sync.chngMtx.Lock()
 	defer l.sync.chngMtx.Unlock()
 	l.level = normLevel(minlevel)
@@ -84,9 +84,9 @@ func (l *logger) IsActive() bool {
 	return l.state == STATE_ACTIVE
 }
 
-func (l *logger) AddOutputWithDecoration(output outType, timeformat string, colormap, prefixes *lvlStringMap, delimiter string) *logger {
-	l.operateOutputs([]outType{output}, func(m outList, k outType) {
-		m[k] = &outDecoration{
+func (l *logger) AddOutputWithDeco(output outType, timeformat string, colormap, prefixes *LevelMap, delimiter string) *logger {
+	l.operateOutputs([]outType{output}, func(m *outList, k outType) {
+		(*m)[k] = &outDecoration{
 			ansicolormap: colormap,
 			lvlprefixmap: prefixes,
 			delimiter:    delimiter,
@@ -94,23 +94,53 @@ func (l *logger) AddOutputWithDecoration(output outType, timeformat string, colo
 			enabled:      true,
 		}
 	})
-	pf := PrefixesShort()
-	fmt.Printf("%v\n", pf == defaultShortPrefixes)
 	return l
 }
 
-func (l *logger) AddOutputs(prefixmap *lvlStringMap, outputs ...outType) *logger {
-	l.operateOutputs(outputs, func(m outList, k outType) {
-		m[k] = &outDecoration{
-			lvlprefixmap: prefixmap,
-			enabled:      true,
+func (l *logger) AddOutputs(outputs ...outType) *logger {
+	l.operateOutputs(outputs, func(m *outList, k outType) {
+		(*m)[k] = &outDecoration{
+			enabled: true,
 		}
 	})
 	return l
 }
 
+func (l *logger) SetLevelPrefix(output outType, prefixmap levelMapPtr, delimiter string) bool {
+	if l.outputs[output] == nil {
+		return false
+	}
+	l.outputs[output].delimiter = delimiter
+	l.outputs[output].lvlprefixmap = prefixmap
+	return true
+}
+
+func (l *logger) SetLevelColor(output outType, colormap *LevelMap) bool {
+	if l.outputs[output] == nil {
+		return false
+	}
+	l.outputs[output].ansicolormap = colormap
+	return true
+}
+
+func (l *logger) SetTimeFormat(output outType, format string) bool {
+	if l.outputs[output] == nil {
+		return false
+	}
+	l.outputs[output].timeformat = format
+	return true
+}
+
+func (l *logger) SetShowLevelNum(output outType) bool {
+	if l.outputs[output] == nil {
+		return false
+	}
+	l.outputs[output].showlvlnum = true
+	return true
+}
+
 func (l *logger) RemoveOutputs(outputs ...outType) *logger {
-	l.operateOutputs(outputs, func(m outList, k outType) { delete(m, k) })
+	l.operateOutputs(outputs, func(m *outList, k outType) { delete(*m, k) })
 	return l
 }
 
@@ -119,7 +149,7 @@ func (l *logger) ClearOutputs() *logger {
 	return l
 }
 
-func (l *logger) operateOutputs(slice []outType, operation func(m outList, k outType)) {
+func (l *logger) operateOutputs(slice []outType, operation func(m *outList, k outType)) {
 	if len(slice) == 0 {
 		return
 	}
@@ -127,7 +157,7 @@ func (l *logger) operateOutputs(slice []outType, operation func(m outList, k out
 	defer l.sync.outsMtx.Unlock()
 	for _, output := range slice {
 		if output != nil {
-			operation(l.outputs, output)
+			operation(&l.outputs, output)
 		}
 	}
 }

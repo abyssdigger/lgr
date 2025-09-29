@@ -14,38 +14,38 @@ type panicWriter struct{}
 
 func (p *panicWriter) Write(b []byte) (int, error) { panic("panic in writer") }
 
-func TestLogger_AddOutputs(nil, t *testing.T) {
+func TestLogger_AddOutputs(t *testing.T) {
 	logger := &Logger{}
 	buf1 := &bytes.Buffer{}
 	buf2 := &bytes.Buffer{}
 	// Добавление обычных выходов
-	logger.AddOutputs(nil, buf1, buf2)
+	logger.AddOutputs(buf1, buf2)
 	if len(logger.outputs) != 2 {
 		t.Errorf("Expected 2 outputs, got %d", len(logger.outputs))
 	}
 	// Попытка добавить повторно
-	logger.AddOutputs(nil, buf1)
+	logger.AddOutputs(buf1)
 	if len(logger.outputs) != 2 {
 		t.Errorf("Duplicate output should not be added")
 	}
 	// Попытка добавить nil
-	logger.AddOutputs(nil, nil)
+	logger.AddOutputs(nil)
 	if len(logger.outputs) != 2 {
 		t.Errorf("nil output should not be added")
 	}
 	// Попытка добавить только nil
-	logger.AddOutputs(nil, nil, nil)
+	logger.AddOutputs(nil, nil)
 	if len(logger.outputs) != 2 {
 		t.Errorf("Only nil outputs should not be added")
 	}
 	// Попытка добавить nil и новый
 	buf3 := &bytes.Buffer{}
-	logger.AddOutputs(nil, nil, buf3)
+	logger.AddOutputs(nil, buf3)
 	if len(logger.outputs) != 3 || logger.outputs[2] != buf3 {
 		t.Errorf("Output buf3 should be added, nil ignored")
 	}
 	// Попытка добавить пустой список
-	logger.AddOutputs(nil, )
+	logger.AddOutputs()
 	if len(logger.outputs) != 3 || logger.outputs[2] != buf3 {
 		t.Errorf("Empty list gas to be ignored")
 	}
@@ -54,7 +54,7 @@ func TestLogger_AddOutputs(nil, t *testing.T) {
 func TestLogger_ClearOutputs(t *testing.T) {
 	logger := &Logger{}
 	buf := &bytes.Buffer{}
-	logger.AddOutputs(nil, buf)
+	logger.AddOutputs(buf)
 	logger.ClearOutputs()
 	if len(logger.outputs) != 0 {
 		t.Errorf("Outputs not cleared")
@@ -71,7 +71,7 @@ func TestLogger_RemoveOutputs(t *testing.T) {
 	buf1 := &bytes.Buffer{}
 	buf2 := &bytes.Buffer{}
 	buf3 := &bytes.Buffer{}
-	logger.AddOutputs(nil, buf1, buf2, buf3)
+	logger.AddOutputs(buf1, buf2, buf3)
 	// Удаление одного
 	logger.RemoveOutputs(buf1)
 	if len(logger.outputs) != 2 || logger.outputs[buf2] || !logger.outputs[buf3] || logger.outputs[buf1] {
@@ -88,13 +88,13 @@ func TestLogger_RemoveOutputs(t *testing.T) {
 		t.Errorf("RemoveOutputs on empty should keep outputs empty")
 	}
 	// Удаление nil
-	logger.AddOutputs(nil, buf1)
+	logger.AddOutputs(buf1)
 	logger.RemoveOutputs(nil)
 	if len(logger.outputs) != 1 {
 		t.Errorf("RemoveOutputs(nil) should not remove anything")
 	}
 	// Удаление пустого списка
-	logger.AddOutputs(nil, buf1)
+	logger.AddOutputs(buf1)
 	logger.RemoveOutputs()
 	if len(logger.outputs) != 1 {
 		t.Errorf("RemoveOutputs() should not remove anything")

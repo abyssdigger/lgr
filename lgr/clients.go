@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-func (l *logger) NewClient(name string, maxLevel logLevel) *logClient {
+func (l *logger) NewClient(name string, maxLevel LogLevel) *logClient {
 	client := &logClient{
 		logger:   l,
 		name:     name,
@@ -22,7 +22,7 @@ func (l *logger) DelClient(lc *logClient) {
 	delete(l.clients, lc)
 }
 
-func (lc *logClient) LogE(level logLevel, s string) (err error) {
+func (lc *logClient) LogE(level LogLevel, s string) (err error) {
 	l := lc.logger
 	if l == nil {
 		return fmt.Errorf("logger is nil")
@@ -50,12 +50,18 @@ func (lc *logClient) LogE(level logLevel, s string) (err error) {
 			return fmt.Errorf("logger channel is nil")
 		}
 		// will panic if channel is closed (with recover and setting error)
-		l.channel <- logMessage{level: level, msgclnt: lc, msgtime: t, msgtype: MSG_LOG_TEXT, msgdata: s}
+		l.channel <- logMessage{
+			level:   level,
+			msgclnt: lc,
+			msgtime: t,
+			msgtype: MSG_LOG_TEXT,
+			msgdata: s,
+		}
 	}
 	return
 }
 
-func (lc *logClient) Log(level logLevel, s string) {
+func (lc *logClient) Log(level LogLevel, s string) {
 	err := lc.LogE(level, s)
 	if err != nil {
 		lc.logger.handleLogWriteError(err.Error())
@@ -86,7 +92,7 @@ func (lc *logClient) LogErr(e error) {
 // * common usage: fmt.Fprintf(C.Lvl(LVL_WARN), "warning: %s happened in module %s", text, modulename)
 // * with preset curLevel: fmt.Fprintf(C, "something %s in %s", text, somewhere)
 
-func (lc *logClient) Lvl(level logLevel) *logClient {
+func (lc *logClient) Lvl(level LogLevel) *logClient {
 	lc.curLevel = level
 	return lc
 }

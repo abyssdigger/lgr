@@ -2,13 +2,14 @@ package lgr
 
 const (
 	DEFAULT_LOG_LEVEL = LVL_ERROR
-	DEFAULT_BUFF_SIZE = 32
+	DEFAULT_MSG_BUFF  = 32
+	DEFAULT_OUT_BUFF  = 256
 )
 
-type logLevel uint8
+type LogLevel uint8
 
 const (
-	LVL_UNKNOWN logLevel = iota
+	LVL_UNKNOWN LogLevel = iota
 	LVL_TRACE
 	LVL_DEBUG
 	LVL_INFO
@@ -42,8 +43,8 @@ func normState(state lgrState) lgrState {
 	return norm_uint8(state, _STATE_MAX_FOR_CHECKS_ONLY, STATE_UNKNOWN)
 }
 
-func normLevel(level logLevel) logLevel {
-	return norm_uint8(level, _LVL_MAX_FOR_CHECKS_ONLY, _LVL_MAX_FOR_CHECKS_ONLY-1)
+func normLevel(level LogLevel) LogLevel {
+	return norm_uint8(level, _LVL_MAX_FOR_CHECKS_ONLY, LVL_UNKNOWN)
 }
 
 func norm_uint8[T ~uint8](val, overlimit, def T) T {
@@ -61,66 +62,40 @@ const (
 	ANSI_COLOR_RESET  = ANSI_COLOR_PREFIX + "0" + ANSI_COLOR_SUFFIX
 )
 
-//////////////////////////////////////////////////////////////////////////////////////////
-//const logTermReset = "\033[0m"
+type LevelMap [_LVL_MAX_FOR_CHECKS_ONLY]string
+type levelMapPtr *LevelMap
 
-type logLevelDesc struct {
-	Short string
-	Long  string
-	color string
+var LevelShortNames = LevelMap{
+	"???", //LVL_UNKNOWN
+	"TRC", //LVL_TRACE
+	"DBG", //LVL_DEBUG
+	"INF", //LVL_INFO
+	"WRN", //LVL_WARN
+	"ERR", //LVL_ERROR
+	"FTL", //LVL_FATAL
+	"!!!", //LVL_UNMASKABLE
 }
 
-var defaultShortPrefixes *lvlStringMap
-
-func PrefixesShort() *lvlStringMap {
-	if defaultShortPrefixes == nil {
-		m := make(lvlStringMap)
-		m[LVL_UNKNOWN] = "???"
-		m[LVL_TRACE] = "TRC"
-		m[LVL_DEBUG] = "DBG"
-		m[LVL_INFO] = "INF"
-		m[LVL_WARN] = "WRN"
-		m[LVL_ERROR] = "ERR"
-		m[LVL_FATAL] = "FTL"
-		m[LVL_UNMASKABLE] = "!!!"
-		defaultShortPrefixes = &m
-	}
-	return defaultShortPrefixes
+var LevelFullNames = LevelMap{
+	"UNKNOWN",    //LVL_UNKNOWN
+	"TRACE",      //LVL_TRACE
+	"DEBUG",      //LVL_DEBUG
+	"INFO",       //LVL_INFO
+	"WARN",       //LVL_WARN
+	"ERROR",      //LVL_ERROR
+	"FATAL",      //LVL_FATAL
+	"UNMASKABLE", //LVL_UNMASKABLE
 }
 
-/*
-"UNKNOWN"
-"TRACE"
-"DEBUG"
-"INFO"
-"WARN"
-"ERROR"
-"FATAL"
-"UNMASKABLE"
-*/
-var LogLevelDesc map[logLevel]*logLevelDesc
-
-func init() {
-	LogLevelDesc = make(map[logLevel]*logLevelDesc)
-	LogLevelDesc[LVL_UNKNOWN] = &logLevelDesc{Short: "???", Long: "UNKNOWN"}
-	LogLevelDesc[LVL_TRACE] = &logLevelDesc{Short: "TRC", Long: "TRACE"}
-	LogLevelDesc[LVL_DEBUG] = &logLevelDesc{Short: "DBG", Long: "DEBUG"}
-	LogLevelDesc[LVL_INFO] = &logLevelDesc{Short: "INF", Long: "INFO"}
-	LogLevelDesc[LVL_WARN] = &logLevelDesc{Short: "WRN", Long: "WARN"}
-	LogLevelDesc[LVL_ERROR] = &logLevelDesc{Short: "ERR", Long: "ERROR"}
-	LogLevelDesc[LVL_FATAL] = &logLevelDesc{Short: "FTL", Long: "FATAL"}
-	LogLevelDesc[LVL_UNMASKABLE] = &logLevelDesc{Short: "!!!", Long: "UNMASKABLE"}
-	//https://habr.com/ru/companies/first/articles/672464/?ysclid=mfy8zz61fw842674829
-	LogLevelDesc[LVL_UNKNOWN].color = "\033[9;90m"
-	LogLevelDesc[LVL_TRACE].color = "\033[2;90m"
-	LogLevelDesc[LVL_DEBUG].color = "\033[0;90m"
-	LogLevelDesc[LVL_INFO].color = "\033[0;97m"
-	LogLevelDesc[LVL_WARN].color = "\033[0;33m"
-	LogLevelDesc[LVL_ERROR].color = "\033[0;91m"
-	LogLevelDesc[LVL_FATAL].color = "\033[101m\033[1;33m"
-	LogLevelDesc[LVL_UNMASKABLE].color = "\033[107m\033[1;31m"
+var ColorOnBlackMap = LevelMap{
+	"9;90",     //LVL_UNKNOWN
+	"2;90",     //LVL_TRACE
+	"0;90",     //LVL_DEBUG
+	"0;97",     //LVL_INFO
+	"0;33",     //LVL_WARN
+	"0;91",     //LVL_ERROR
+	"101;1;33", //LVL_FATAL
+	"107;1;31", //LVL_UNMASKABLE
 }
 
-/*func logstr(format, prefix, text string) string {
-	return fmt.Sprintf(format, prefix, text)
-}*/
+const DEFAULT_DELIMITER = "|"

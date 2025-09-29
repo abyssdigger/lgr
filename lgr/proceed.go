@@ -1,8 +1,11 @@
 package lgr
 
 import (
+	"bytes"
 	"fmt"
 )
+
+var outBuffer = bytes.NewBuffer(make([]byte, DEFAULT_OUT_BUFF))
 
 func (l *logger) procced() {
 	defer func() {
@@ -41,7 +44,7 @@ func (l *logger) logTextToOutputs(msg *logMessage) {
 	defer l.sync.outsMtx.RUnlock()
 	for output, settings := range l.outputs {
 		if settings.enabled && output != nil {
-			panicked, err := l.logData(output, []byte(msg.msgdata+"\n"))
+			panicked, err := l.logData(output, msg)
 			if panicked {
 				// got panic writing, disable output
 				l.outputs[output].enabled = false
@@ -53,7 +56,7 @@ func (l *logger) logTextToOutputs(msg *logMessage) {
 	}
 }
 
-func (l *logger) logData(output outType, data []byte) (panicked bool, err error) {
+func (l *logger) logData(output outType, msg *logMessage) (panicked bool, err error) {
 	// only returns of named result values can be changed by defer:
 	// https://bytegoblin.io/blog/golang-magic-modify-return-value-using-deferred-function
 	panicked = false
@@ -64,7 +67,8 @@ func (l *logger) logData(output outType, data []byte) (panicked bool, err error)
 			err = fmt.Errorf("panic writing log to output `%v`: %v", output, r)
 		}
 	}()
-	n, err := output.Write(data)
+	//n, err := output.Write(databuff)
+	n, err := buildTextMessage(msg, l.outputs[output]).WriteTo(output)
 	if err != nil {
 		err = fmt.Errorf("error writing log to output `%v` (%d bytes written): %v", output, n, err)
 	}
@@ -77,4 +81,37 @@ func (l *logger) handleLogWriteError(errormsg string) {
 	if l.fallbck != nil {
 		fmt.Fprintln(l.fallbck, errormsg)
 	}
+}
+
+func buildTextMessage(msg *logMessage, deco *outDecoration) *bytes.Buffer {
+	// переделать под bytes.Buffer + sync.Pool
+	outBuffer.Reset()
+	level := normLevel(msg.level)
+	withColor := deco != nil && deco.ansicolormap != nil
+	withPrefix := deco != nil && deco.lvlprefixmap != nil
+	if len(deco.timeformat) > 0 {
+		outBuffer.WriteString(msg.msgtime.Format(deco.timeformat))
+	}
+	if deco.showlvlnum {
+		fmt.Fprintf(outBuffer, "[%d]", msg.level)
+	}
+	if withPrefix {
+		outBuffer.WriteString(deco.lvlprefixmap[level])
+		outBuffer.WriteString(deco.delimiter)
+	}
+	if withColor {
+		outBuffer.WriteString(ANSI_COLOR_PREFIX)
+		outBuffer.WriteString(deco.ansicolormap[level])
+		outBuffer.WriteString(ANSI_COLOR_SUFFIX)
+	}
+	if msg.msgclnt != nil && len(msg.msgclnt.name) > 0 {
+		outBuffer.WriteString(msg.msgclnt.name)
+		outBuffer.WriteString(deco.delimiter)
+	}
+	outBuffer.WriteString(msg.msgdata)
+	if withColor {
+		outBuffer.WriteString(ANSI_COLOR_RESET)
+	}
+	outBuffer.WriteByte('\n')
+	return outBuffer
 }

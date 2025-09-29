@@ -10,10 +10,10 @@ func Test_logClient_LogE(t *testing.T) {
 	var err error
 	var l *logger
 	var lc *logClient
-	prep := func(f func(), loglevel logLevel, msglevel logLevel, ferr outType, outs ...outType) error {
+	prep := func(f func(), loglevel LogLevel, msglevel LogLevel, ferr outType, outs ...outType) error {
 		err = nil
 		l = Init()
-		l.SetFallback(ferr).ClearOutputs().AddOutputs(nil, outs...)
+		l.SetFallback(ferr).ClearOutputs().AddOutputs(outs...)
 		lc = l.NewClient("Testing", LVL_UNKNOWN)
 		lc.maxLevel = _LVL_MAX_FOR_CHECKS_ONLY
 		if f == nil {
