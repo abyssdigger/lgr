@@ -10,25 +10,34 @@ import (
 
 func st1() {
 	var logger = lgr.InitWithParams(lgr.LVL_UNKNOWN, os.Stderr, nil) //...Default()
-	var alter = *os.Stdout
-	res := lgr.Writerval(&alter)
-	outs := [...]io.Writer{nil, res, os.Stdout, nil, os.Stderr}
+	var alter1 = *os.Stdout
+	var alter2 = *os.Stdout
+	res1 := &alter1
+	res2 := &alter2
+	outs := [...]io.Writer{nil, res1, os.Stdout, res2, os.Stderr}
 	for i := 1; i <= len(outs); i++ {
 		logger.Start(32)
 		logger.AddOutputs(outs[i-1])
-		logger.SetLevelPrefix(os.Stderr, &lgr.LevelShortNames, ": ")
-		logger.SetLevelPrefix(res, &lgr.LevelFullNames, " --> ")
-		logger.SetLevelColor(os.Stdout, &lgr.ColorOnBlackMap)
-		logger.SetTimeFormat(res, "2006-01-02 15:04:05 ")
+		logger.SetLevelPrefix(os.Stderr, lgr.LevelShortNames, "\t")
+		logger.SetLevelPrefix(res1, lgr.LevelFullNames, " --> ")
+		logger.SetLevelPrefix(res2, lgr.LevelShortNames, "|")
+		logger.SetLevelColor(os.Stdout, lgr.ColorOnBlackMap)
+		logger.SetTimeFormat(res1, "2006-01-02 15:04:05 ")
 		logger.SetTimeFormat(os.Stderr, "2006-01-02 15:04:05 ")
-		logger.SetShowLevelNum(os.Stderr)
-		lclient := logger.NewClient("", lgr.LVL_UNMASKABLE+1)
+		logger.ShowLevelCode(os.Stderr)
+		lclient1 := logger.NewClient("<Тестовое имя Name>", lgr.LVL_UNMASKABLE+1)
+		lclient2 := logger.NewClient("^china 你好 прочая^", lgr.LVL_UNMASKABLE+1)
 		for j := range lgr.LogLevel(lgr.LVL_UNMASKABLE + 1 + 1) {
-			err := lclient.LogE(j, "LOG! #"+fmt.Sprint(j+1))
+			_, err := lclient1.Log_with_err(j, "LOG! #"+fmt.Sprint(j+1))
 			if err != nil {
-				fmt.Println("Error:", err)
+				fmt.Println("Error1:", err)
 			} else {
-				fmt.Println("Logged #")
+				_, err := lclient2.Log_with_err(j, "ЛОГ? №"+fmt.Sprint(j+1))
+				if err != nil {
+					fmt.Println("Error1:", err)
+				} else {
+					fmt.Println("Logged #")
+				}
 			}
 		}
 		fmt.Println("Stopping logger...")

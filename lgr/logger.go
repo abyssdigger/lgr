@@ -22,7 +22,7 @@ func InitWithParams(level LogLevel, fallback outType, outputs ...outType) *logge
 	l := new(logger)
 	l.state = STATE_STOPPED
 	l.outputs = outList{}
-	l.clients = clients{}
+	//l.clients = clientMap{}
 	l.SetMinLevel(level)
 	l.SetFallback(fallback)
 	l.AddOutputs(outputs...)
@@ -84,60 +84,16 @@ func (l *logger) IsActive() bool {
 	return l.state == STATE_ACTIVE
 }
 
-func (l *logger) AddOutputWithDeco(output outType, timeformat string, colormap, prefixes *LevelMap, delimiter string) *logger {
-	l.operateOutputs([]outType{output}, func(m *outList, k outType) {
-		(*m)[k] = &outDecoration{
-			ansicolormap: colormap,
-			lvlprefixmap: prefixes,
-			delimiter:    delimiter,
-			timeformat:   timeformat,
-			enabled:      true,
-		}
-	})
-	return l
-}
-
 func (l *logger) AddOutputs(outputs ...outType) *logger {
 	l.operateOutputs(outputs, func(m *outList, k outType) {
-		(*m)[k] = &outDecoration{
+		(*m)[k] = &outContext{
 			enabled: true,
 		}
 	})
 	return l
 }
 
-func (l *logger) SetLevelPrefix(output outType, prefixmap levelMapPtr, delimiter string) bool {
-	if l.outputs[output] == nil {
-		return false
-	}
-	l.outputs[output].delimiter = delimiter
-	l.outputs[output].lvlprefixmap = prefixmap
-	return true
-}
-
-func (l *logger) SetLevelColor(output outType, colormap *LevelMap) bool {
-	if l.outputs[output] == nil {
-		return false
-	}
-	l.outputs[output].ansicolormap = colormap
-	return true
-}
-
-func (l *logger) SetTimeFormat(output outType, format string) bool {
-	if l.outputs[output] == nil {
-		return false
-	}
-	l.outputs[output].timeformat = format
-	return true
-}
-
-func (l *logger) SetShowLevelNum(output outType) bool {
-	if l.outputs[output] == nil {
-		return false
-	}
-	l.outputs[output].showlvlnum = true
-	return true
-}
+// Outputs //////////////////////////////////////////
 
 func (l *logger) RemoveOutputs(outputs ...outType) *logger {
 	l.operateOutputs(outputs, func(m *outList, k outType) { delete(*m, k) })
@@ -162,8 +118,36 @@ func (l *logger) operateOutputs(slice []outType, operation func(m *outList, k ou
 	}
 }
 
-func (l *logger) setState(newstate lgrState) {
-	l.sync.statMtx.Lock()
-	defer l.sync.statMtx.Unlock()
-	l.state = normState(newstate)
+// Settings //////////////////////////////////////////
+
+func (l *logger) SetLevelPrefix(output outType, prefixmap *LevelMap, delimiter string) *logger {
+	return l.changeOutSettings(output, func(s *outContext) {
+		s.prefixmap = prefixmap
+		s.delimiter = []byte(delimiter)
+	})
+}
+
+func (l *logger) SetLevelColor(output outType, colormap *LevelMap) *logger {
+	return l.changeOutSettings(output, func(s *outContext) {
+		s.colormap = colormap
+	})
+}
+
+func (l *logger) SetTimeFormat(output outType, format string) *logger {
+	return l.changeOutSettings(output, func(s *outContext) {
+		s.timefmt = format
+	})
+}
+
+func (l *logger) ShowLevelCode(output outType) *logger {
+	return l.changeOutSettings(output, func(s *outContext) {
+		s.lvlcode = true
+	})
+}
+
+func (l *logger) changeOutSettings(output outType, f func(s *outContext)) *logger {
+	if l.outputs[output] != nil {
+		f(l.outputs[output])
+	}
+	return l
 }

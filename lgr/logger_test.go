@@ -185,8 +185,8 @@ func TestLogger_SetLogLevel(t *testing.T) {
 		for i := range rng {
 			lres := l.SetMinLevel(LogLevel(i))
 			res := LogLevel(i)
-			if res >= _LVL_MAX_FOR_CHECKS_ONLY {
-				res = _LVL_MAX_FOR_CHECKS_ONLY - 1
+			if res >= _LVL_MAX_for_checks_only {
+				res = LVL_UNKNOWN
 			}
 			assert.Equal(t, res, l.level)
 			assert.Equal(t, l, lres, "result is another logger")
@@ -335,10 +335,10 @@ func TestInitWithParams(t *testing.T) {
 	t.Run("corrections", func(t *testing.T) {
 		out1 := os.Stdout
 		out2 := io.Discard
-		level := _LVL_MAX_FOR_CHECKS_ONLY + 10
+		level := _LVL_MAX_for_checks_only + 10
 		l := InitWithParams(level, nil, nil, out1, nil, out2)
 		assert.Equal(t, STATE_STOPPED, l.state, "wrong state after init")
-		assert.Equal(t, _LVL_MAX_FOR_CHECKS_ONLY-1, l.level, "wrong level after init")
+		assert.Equal(t, LVL_UNKNOWN, l.level, "wrong level after init")
 		assert.Equal(t, 2, len(l.outputs), "wrong outputs count after init")
 		assert.Contains(t, l.outputs, out1, "missing output1 after init")
 		assert.Contains(t, l.outputs, out2, "missing output2 after init")

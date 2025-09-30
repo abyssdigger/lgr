@@ -6,8 +6,6 @@ const (
 	DEFAULT_OUT_BUFF  = 256
 )
 
-type LogLevel uint8
-
 const (
 	LVL_UNKNOWN LogLevel = iota
 	LVL_TRACE
@@ -17,10 +15,8 @@ const (
 	LVL_ERROR
 	LVL_FATAL
 	LVL_UNMASKABLE
-	_LVL_MAX_FOR_CHECKS_ONLY
+	_LVL_MAX_for_checks_only
 )
-
-type lgrState uint8
 
 const (
 	STATE_UNKNOWN lgrState = iota
@@ -30,8 +26,6 @@ const (
 	_STATE_MAX_FOR_CHECKS_ONLY
 )
 
-type msgType uint8
-
 const (
 	MSG_FORBIDDEN msgType = iota
 	MSG_LOG_TEXT
@@ -40,14 +34,14 @@ const (
 )
 
 func normState(state lgrState) lgrState {
-	return norm_uint8(state, _STATE_MAX_FOR_CHECKS_ONLY, STATE_UNKNOWN)
+	return norm_byte(state, _STATE_MAX_FOR_CHECKS_ONLY, STATE_UNKNOWN)
 }
 
 func normLevel(level LogLevel) LogLevel {
-	return norm_uint8(level, _LVL_MAX_FOR_CHECKS_ONLY, LVL_UNKNOWN)
+	return norm_byte(level, _LVL_MAX_for_checks_only, LVL_UNKNOWN)
 }
 
-func norm_uint8[T ~uint8](val, overlimit, def T) T {
+func norm_byte[T ~byte](val, overlimit, def T) T {
 	if val < overlimit {
 		return val
 	} else {
@@ -55,17 +49,18 @@ func norm_uint8[T ~uint8](val, overlimit, def T) T {
 	}
 }
 
+const DEFAULT_DELIMITER = ":"
+
 const (
-	// ANSI colored text is a string like `ESC`[38;2;⟨r⟩;⟨g⟩;⟨b⟩mSome_text`ESC`[0m (`ESC`=\033)
-	ANSI_COLOR_PREFIX = "\033["
-	ANSI_COLOR_SUFFIX = "m"
-	ANSI_COLOR_RESET  = ANSI_COLOR_PREFIX + "0" + ANSI_COLOR_SUFFIX
+	// ANSI colored text is a string like \033[38;2;⟨r⟩;⟨g⟩;⟨b⟩mSome_colored_text\033[0m
+	ANSI_COL_PRFX  = "\033["
+	ANSI_COL_SUFX  = "m"
+	ANSI_COL_RESET = ANSI_COL_PRFX + "0" + ANSI_COL_SUFX
 )
 
-type LevelMap [_LVL_MAX_FOR_CHECKS_ONLY]string
-type levelMapPtr *LevelMap
+type LevelMap [_LVL_MAX_for_checks_only]string
 
-var LevelShortNames = LevelMap{
+var LevelShortNames = &LevelMap{
 	"???", //LVL_UNKNOWN
 	"TRC", //LVL_TRACE
 	"DBG", //LVL_DEBUG
@@ -76,7 +71,7 @@ var LevelShortNames = LevelMap{
 	"!!!", //LVL_UNMASKABLE
 }
 
-var LevelFullNames = LevelMap{
+var LevelFullNames = &LevelMap{
 	"UNKNOWN",    //LVL_UNKNOWN
 	"TRACE",      //LVL_TRACE
 	"DEBUG",      //LVL_DEBUG
@@ -87,7 +82,7 @@ var LevelFullNames = LevelMap{
 	"UNMASKABLE", //LVL_UNMASKABLE
 }
 
-var ColorOnBlackMap = LevelMap{
+var ColorOnBlackMap = &LevelMap{
 	"9;90",     //LVL_UNKNOWN
 	"2;90",     //LVL_TRACE
 	"0;90",     //LVL_DEBUG
@@ -97,5 +92,3 @@ var ColorOnBlackMap = LevelMap{
 	"101;1;33", //LVL_FATAL
 	"107;1;31", //LVL_UNMASKABLE
 }
-
-const DEFAULT_DELIMITER = "|"
