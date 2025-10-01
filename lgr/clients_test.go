@@ -1,20 +1,22 @@
 package lgr
 
 import (
+	"errors"
+	"fmt"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
 
-func Test_logClient_LogE(t *testing.T) {
+func Test_logClient_Log_with_err(t *testing.T) {
 	var msg *logMessage
 	var err error
 	var l *logger
 	var lc *logClient
-	prep := func(f func(), loglevel LogLevel, msglevel LogLevel, ferr outType, outs ...outType) (*logMessage, error) {
-		err = nil
+	prep := func(f func(), loglevel LogLevel, msglevel LogLevel, ferr *FakeWriter, outs ...outType) (*logMessage, error) {
 		l = Init()
-		l.SetFallback(ferr).ClearOutputs().AddOutputs(outs...)
+		l.SetFallback(outType(ferr)).ClearOutputs().AddOutputs(outs...)
 		lc = l.NewClient("[Testing client name]", LVL_UNKNOWN)
 		if f == nil {
 			l.Start(0)
@@ -22,11 +24,15 @@ func Test_logClient_LogE(t *testing.T) {
 			f()
 		}
 		l.level = loglevel
-		msg, err := lc.Log_with_err(msglevel, testlogstr)
+		t, e := lc.Log_with_err(msglevel, testlogstr)
 		if f == nil {
 			l.StopAndWait()
 		}
-		return msg, err
+		if e == nil {
+			msg := lc.makeTextMessage(t, loglevel, []byte(testlogstr))
+			return &msg, nil
+		}
+		return nil, e
 	}
 	t.Run("panic_on_closed_channel", func(t *testing.T) {
 		ferr := &FakeWriter{}
@@ -40,9 +46,9 @@ func Test_logClient_LogE(t *testing.T) {
 		l.channel = make(chan logMessage)
 		l.StopAndWait()
 		assert.Error(t, err, "no error on log to stopped logger")
-		assert.Contains(t, err.Error(), "panic", "Wrong error on log to stopped logger")
-		assert.Empty(t, ferr, "data written to fallback")
-		assert.Empty(t, out1, "data written to output")
+		assert.ErrorContains(t, err, "panic", "Wrong error on log to stopped logger")
+		assert.Empty(t, ferr.String(), "data written to fallback")
+		assert.Empty(t, out1.String(), "data written to output")
 	})
 	t.Run("not_active", func(t *testing.T) {
 		ferr := &FakeWriter{}
@@ -51,24 +57,23 @@ func Test_logClient_LogE(t *testing.T) {
 			msg, err = prep(func() {}, LVL_WARN, LVL_WARN, ferr, out1)
 		}, "Panic on write")
 		l.StopAndWait()
-		assert.Error(t, err, "no error on log to stopped logger")
-		assert.Nil(t, msg, "message not nil")
-		assert.Contains(t, err.Error(), "not active", "Wrong error on log to stopped logger")
-		assert.Empty(t, ferr, "data written to fallback")
-		assert.Empty(t, out1, "data written to output")
+		assert.ErrorContains(t, err, "not active", "Wrong error on log to stopped logger")
+		assert.Empty(t, ferr.String(), "data written to fallback")
+		assert.Empty(t, out1.String(), "data written to output")
 	})
 	t.Run("unrecovered_panic", func(t *testing.T) {
 		ferr := &FakeWriter{}
 		out1 := &FakeWriter{}
 		out2 := &FakeWriter{}
 		assert.Panics(t, func() {
+			err = nil
 			msg, err = prep(nil, _LVL_MAX_for_checks_only, LVL_DEBUG, ferr, out1, out2)
 		}, "No panic on unmasked panic")
 		assert.NoError(t, err, "unexpected error")
 		assert.Nil(t, msg, "message not nil")
-		assert.Empty(t, out1)
-		assert.Empty(t, out2)
-		assert.Empty(t, ferr)
+		assert.Empty(t, out1.String())
+		assert.Empty(t, out2.String())
+		assert.Empty(t, ferr.String())
 	})
 	t.Run("error_on_nil_channel", func(t *testing.T) {
 		ferr := &FakeWriter{}
@@ -80,9 +85,9 @@ func Test_logClient_LogE(t *testing.T) {
 		}, "Panic on write")
 		assert.Error(t, err, "no error on log to stopped logger")
 		assert.Nil(t, msg, "message not nil")
-		assert.Contains(t, err.Error(), "channel is nil", "Wrong error on log to stopped logger")
-		assert.Empty(t, ferr, "data written to fallback")
-		assert.Empty(t, out1, "data written to output")
+		assert.ErrorContains(t, err, "channel is nil", "Wrong error on log to stopped logger")
+		assert.Empty(t, ferr.String(), "data written to fallback")
+		assert.Empty(t, out1.String(), "data written to output")
 	})
 	t.Run("error_on_nil_logger", func(t *testing.T) {
 		ferr := &FakeWriter{}
@@ -95,9 +100,9 @@ func Test_logClient_LogE(t *testing.T) {
 		}, "Panic on write")
 		assert.Error(t, err, "no error on log to stopped logger")
 		assert.Nil(t, msg, "message not nil")
-		assert.Contains(t, err.Error(), "logger is nil", "Wrong error on log to stopped logger")
-		assert.Empty(t, ferr, "data written to fallback")
-		assert.Empty(t, out1, "data written to output")
+		assert.ErrorContains(t, err, "logger is nil", "Wrong error on log to stopped logger")
+		assert.Empty(t, ferr.String(), "data written to fallback")
+		assert.Empty(t, out1.String(), "data written to output")
 	})
 	t.Run("nil_output", func(t *testing.T) {
 		ferr := &FakeWriter{}
@@ -105,12 +110,12 @@ func Test_logClient_LogE(t *testing.T) {
 			msg, err = prep(nil, LVL_INFO, LVL_WARN, ferr)
 			assert.NoError(t, err, "unexpected error")
 		}, "Panic on write")
-		assert.Empty(t, ferr, "data written to fallback")
+		assert.Empty(t, ferr.String(), "data written to fallback")
 	})
 	t.Run("no_outputs", func(t *testing.T) {
 		ferr := &FakeWriter{}
 		msg, err = prep(nil, LVL_INFO, LVL_WARN, ferr, []outType{}...)
-		assert.Empty(t, ferr, "data written to fallback on write to nil outputs")
+		assert.Empty(t, ferr.String(), "data written to fallback on write to nil outputs")
 	})
 	t.Run("2_outputs", func(t *testing.T) {
 		ferr := &FakeWriter{}
@@ -122,13 +127,14 @@ func Test_logClient_LogE(t *testing.T) {
 		}, "Panic on write")
 		assert.Equal(t, buildTextMessage(msg, l.Context(out1)).String(), out1.String())
 		assert.Equal(t, buildTextMessage(msg, l.Context(out2)).String(), out2.String())
-		assert.Empty(t, ferr, "data written to fallback")
+		assert.Empty(t, ferr.String(), "data written to fallback")
 	})
 	t.Run("1_error_1_panic_outs", func(t *testing.T) {
 		ferr := &FakeWriter{}
 		out1 := &FakeWriter{}
 		out2 := &FakeWriter{}
 		assert.NotPanics(t, func() {
+			err = nil
 			msg, err = prep(nil, LVL_INFO, LVL_WARN, ferr, out1, &ErrorWriter{}, out2, &PanicWriter{})
 			assert.NoError(t, err, "unexpected error")
 		}, "Panic on write")
@@ -144,8 +150,8 @@ func Test_logClient_LogE(t *testing.T) {
 			msg, err = prep(nil, LVL_INFO, LVL_DEBUG, ferr, out1)
 			assert.NoError(t, err, "unexpected error")
 		}, "Panic on write")
-		assert.Empty(t, ferr, "data written to fallback")
-		assert.Empty(t, out1, "data written to output on log with level lower than set")
+		assert.Empty(t, ferr.String(), "data written to fallback")
+		assert.Empty(t, out1.String(), "data written to output on log with level lower than set")
 	})
 	t.Run("level_logged", func(t *testing.T) {
 		ferr := &FakeWriter{}
@@ -154,17 +160,16 @@ func Test_logClient_LogE(t *testing.T) {
 			msg, err = prep(nil, LVL_WARN, LVL_WARN, ferr, out1)
 			assert.NoError(t, err, "unexpected error")
 		}, "Panic on write")
-		assert.Empty(t, ferr, "data written to fallback")
-		assert.NotEmpty(t, out1, "no data written to output on log with level higher than set")
+		assert.Empty(t, ferr.String(), "data written to fallback")
+		assert.NotEmpty(t, out1.String(), "no data written to output on log with level higher than set")
 		assert.Equal(t, buildTextMessage(msg, l.Context(out1)).String(), out1.String())
 	})
 }
 
 func Test_logClient_Log(t *testing.T) {
-	var msg *logMessage
 	var l *logger
 	var lc *logClient
-	prep := func(f func(), loglevel LogLevel, msglevel LogLevel, ferr outType, outs ...outType) *logMessage {
+	prep := func(f func(), loglevel LogLevel, msglevel LogLevel, ferr outType, outs ...outType) {
 		l = Init()
 		l.SetFallback(ferr).ClearOutputs().AddOutputs(outs...)
 		lc = l.NewClient("[Testing client name]", LVL_UNKNOWN)
@@ -175,23 +180,21 @@ func Test_logClient_Log(t *testing.T) {
 			f()
 		}
 		l.level = loglevel
-		msg := lc.Log(msglevel, testlogstr)
+		lc.Log(msglevel, testlogstr)
 		if f == nil {
 			l.StopAndWait()
 		}
-		return msg
 	}
 	t.Run("not_active", func(t *testing.T) {
 		ferr := &FakeWriter{}
 		out1 := &FakeWriter{}
 		assert.NotPanics(t, func() {
-			msg = prep(func() {}, LVL_WARN, LVL_WARN, ferr, out1)
+			prep(func() {}, LVL_WARN, LVL_WARN, ferr, out1)
 		}, "Panic on write")
 		l.StopAndWait()
-		assert.Nil(t, msg, "message not nil")
-		assert.NotEmpty(t, ferr, "err not written to fallback")
+		assert.NotEmpty(t, ferr.String(), "err not written to fallback")
 		assert.Contains(t, ferr.String(), "not active")
-		assert.Empty(t, out1, "data written to output")
+		assert.Empty(t, out1.String(), "data written to output")
 	})
 }
 
@@ -209,7 +212,115 @@ func Test_logger_NewClient(t *testing.T) {
 	t.Run("new_client_correct_level", func(t *testing.T) {
 		for lvl := range LogLevel(255) {
 			prep(lvl, "[Testing client name]")
-			assert.Equal(t, normLevel(lvl), lc.minLevel, "wrong max level")
+			assert.Equal(t, normLevel(lvl), lc.level, "wrong max level")
 		}
+	})
+}
+
+func Test_logClient_LogLevels(t *testing.T) {
+	l := Init()
+	out1 := &FakeWriter{}
+	l.AddOutputs(out1)
+	l.SetLevelColor(out1, LevelColorOnBlackMap)
+	l.SetLevelPrefix(out1, LevelFullNames, " !delimiter! ")
+	l.SetMinLevel(LVL_UNKNOWN)
+	lc := l.NewClient("", LVL_UNKNOWN)
+	l.Start(0)
+	tests := []struct {
+		level LogLevel
+		fn    func(string) time.Time
+	}{
+		{LVL_TRACE, lc.LogTrace},
+		{LVL_DEBUG, lc.LogDebug},
+		{LVL_INFO, lc.LogInfo},
+		{LVL_WARN, lc.LogWarn},
+		{LVL_ERROR, lc.LogError},
+	}
+	for _, tt := range tests {
+		t.Run(fmt.Sprintf("level_%d", tt.level), func(t *testing.T) {
+			out1.Clear()
+			l.Start(0)
+			time := tt.fn(testlogstr)
+			msg := lc.makeTextMessage(time, tt.level, []byte(testlogstr))
+			l.StopAndWait()
+			assert.Equal(t, buildTextMessage(&msg, l.outputs[out1]).String(), out1.String(), "wrong output")
+		})
+	}
+	t.Run("error_write", func(t *testing.T) {
+		out1.Clear()
+		l.Start(0)
+		time := lc.LogErr(errors.New(testlogstr))
+		msg := lc.makeTextMessage(time, LVL_ERROR, []byte(testlogstr))
+		l.StopAndWait()
+		assert.Equal(t, buildTextMessage(&msg, l.outputs[out1]).String(), out1.String(), "wrong output")
+	})
+}
+
+func Test_logClient_Lvl(t *testing.T) {
+	t.Run("for_255", func(t *testing.T) {
+		var lc logClient
+		for level := range LogLevel(255) {
+			assert.Equal(t, normLevel(level), lc.Lvl(level).curLevel, fmt.Sprintf("Fail on %d", level))
+		}
+	})
+}
+
+func Test_logClient_Write(t *testing.T) {
+	ferr := &FakeWriter{}
+	out1 := &FakeWriter{}
+	l := Init(out1)
+	l.SetLevelColor(out1, LevelColorOnBlackMap).SetLevelPrefix(out1, LevelFullNames, " !delimiter! ")
+	l.SetFallback(ferr)
+	lc := l.NewClient(testlogstr, LVL_UNKNOWN)
+	t.Run("nil_message", func(t *testing.T) {
+		out1.Clear()
+		ferr.Clear()
+		l.Start(0)
+		lc.Lvl(LVL_UNMASKABLE)
+		n, err := lc.Write(nil)
+		assert.NoError(t, err)
+		assert.Zero(t, n)
+		l.StopAndWait()
+		assert.Empty(t, ferr.String())
+		assert.Empty(t, out1.String())
+	})
+	t.Run("full_message", func(t *testing.T) {
+		out1.Clear()
+		ferr.Clear()
+		l.Start(0)
+		n, err := fmt.Fprint(lc.Lvl(LVL_UNMASKABLE), testlogstr)
+		//lc.Write([]byte(testlogstr))
+		assert.NoError(t, err)
+		assert.Equal(t, n, len(testbytes))
+		l.StopAndWait()
+		msg := lc.makeTextMessage(time.Now(), LVL_UNMASKABLE, []byte(testlogstr))
+		assert.Empty(t, ferr.String())
+		assert.Equal(t, buildTextMessage(&msg, l.outputs[out1]).String(), out1.String())
+	})
+	t.Run("not_active", func(t *testing.T) {
+		out1.Clear()
+		ferr.Clear()
+		n, err := fmt.Fprint(lc.Lvl(LVL_UNMASKABLE), testlogstr)
+		assert.ErrorContains(t, err, "not active")
+		l.Start(0)
+		l.StopAndWait()
+		assert.Empty(t, out1.String())
+		assert.Empty(t, ferr.String())
+		assert.Zero(t, n)
+	})
+	t.Run("error_out", func(t *testing.T) {
+		out1.Clear()
+		ferr.Clear()
+		short := "!"
+		l.AddOutputs(&ErrorWriter{}, &PanicWriter{})
+		l.Start(0)
+		n, err := fmt.Fprint(lc.Lvl(LVL_UNMASKABLE), short)
+		assert.NoError(t, err)
+		assert.Equal(t, n, len(short))
+		l.StopAndWait()
+		msg := lc.makeTextMessage(time.Now(), LVL_UNMASKABLE, []byte(short))
+		assert.Contains(t, ferr.String(), errorStr)
+		assert.Contains(t, ferr.String(), panicStr)
+		assert.Equal(t, buildTextMessage(&msg, l.outputs[out1]).String(), out1.String())
 	})
 }

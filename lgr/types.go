@@ -25,7 +25,7 @@ type logMessage struct {
 type logClient struct {
 	logger   *logger
 	name     []byte
-	minLevel LogLevel
+	level    LogLevel
 	curLevel LogLevel
 }
 
@@ -34,8 +34,8 @@ type outContext struct {
 	prefixmap *LevelMap // logLevel-associated prefix
 	delimiter []byte    // added after client name and prefix (usualy ":")
 	timefmt   string    // as in time.Format(), no timestamp on ""
-	lvlcode   bool      // Show [<msg.level>] (after time)
-	enabled   bool
+	showlvlid bool      // show [<msg.level>] (after time)
+	enabled   bool      // enable write message to output if set
 }
 
 type logger struct {
@@ -53,39 +53,4 @@ type logger struct {
 	channel chan logMessage
 	state   lgrState
 	level   LogLevel
-}
-
-// Getters /////////////////////////////////////////////
-func (l *logger) Context(output outType) *outContext {
-	return l.outputs[output]
-}
-
-func (st *outContext) IsEnabled() bool {
-	return st.enabled
-}
-
-// Setters /////////////////////////////////////////////
-func (st *outContext) SetDelimiter(delimiter string) *outContext {
-	st.delimiter = []byte(delimiter)
-	return st
-}
-
-func (st *outContext) SetPrefix(prefixmap *LevelMap) *outContext {
-	st.prefixmap = prefixmap
-	return st
-}
-
-func (st *outContext) SetColor(colormap *LevelMap) *outContext {
-	st.colormap = colormap
-	return st
-}
-
-func (st *outContext) SetTimeFormat(timeformat string) *outContext {
-	st.timefmt = timeformat
-	return st
-}
-
-func (st *outContext) ShowLevelCode() *outContext {
-	st.lvlcode = true
-	return st
 }

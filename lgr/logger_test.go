@@ -6,6 +6,7 @@ import (
 	"os"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -223,7 +224,7 @@ func TestLogger_Start(t *testing.T) {
 		assert.Nil(t, err, "error on first start")
 		err = l.Start(0)
 		assert.NotNil(t, err, "no error on double start")
-		assert.Contains(t, err.Error(), "allready started", "wrong error on double start")
+		assert.ErrorContains(t, err, "allready started", "wrong error on double start")
 		assert.Equal(t, STATE_ACTIVE, l.state, "wrong state after double start")
 		l.StopAndWait()
 	})
@@ -418,5 +419,98 @@ func TestInitAndStart(t *testing.T) {
 			l.StopAndWait()
 		})
 		assert.Equal(t, STATE_STOPPED, l.state, "wrong stopped state")
+	})
+}
+
+func Test_logger_SetLevelPrefix(t *testing.T) {
+	out1 := &FakeWriter{}
+	l := Init(out1)
+	tests := []struct {
+		name      string // description of this test case
+		prefixmap *LevelMap
+		delimiter string
+	}{
+		{"nil_map_no_delim", nil, ""},
+		{"short_map_short_delim", LevelShortNames, "!short!"},
+		{"long_map_long_delim", LevelShortNames, testlogstr},
+		{"empty", nil, ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := l.SetLevelPrefix(out1, tt.prefixmap, tt.delimiter)
+			assert.Equal(t, l, got, "wrong return (must be self)")
+			assert.Equal(t, tt.prefixmap, l.outputs[out1].prefixmap, "wrong prefixmap assignment")
+			assert.Equal(t, tt.delimiter, string(l.outputs[out1].delimiter), "wrong delimiter assignment")
+		})
+	}
+}
+
+func Test_logger_SetLevelColor(t *testing.T) {
+	out1 := &FakeWriter{}
+	l := Init(out1)
+	tests := []struct {
+		name     string // description of this test case
+		colormap *LevelMap
+	}{
+		{"nil", nil},
+		{"map", LevelColorOnBlackMap},
+		{"empty", nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := l.SetLevelColor(out1, tt.colormap)
+			assert.Equal(t, l, got, "wrong return (must be self)")
+			assert.Equal(t, tt.colormap, l.outputs[out1].colormap, "wrong colormap assignment")
+		})
+	}
+}
+
+func Test_logger_SetTimeFormat(t *testing.T) {
+	out1 := &FakeWriter{}
+	l := Init(out1)
+	tests := []struct {
+		name    string // description of this test case
+		timefmt string
+	}{
+		{"empty", ""},
+		{"any", time.RFC1123},
+		{"other", time.Stamp},
+		{"fake", testlogstr},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := l.SetTimeFormat(out1, tt.timefmt)
+			assert.Equal(t, l, got, "wrong return (must be self)")
+			assert.Equal(t, tt.timefmt, l.outputs[out1].timefmt, "wrong time format assignment")
+		})
+	}
+}
+func Test_logger_ShowLevelCode(t *testing.T) {
+	out1 := &FakeWriter{}
+	l := Init(out1)
+	tests := []struct {
+		name string // description of this test case
+	}{
+		{"set"},
+		{"again"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := l.ShowLevelCode(out1)
+			assert.Equal(t, l, got, "wrong return (must be self)")
+			assert.True(t, l.outputs[out1].showlvlid, "showlvlid is unset")
+		})
+	}
+}
+
+func Test_outContext_IsEnabled(t *testing.T) {
+	l := Init(io.Discard)
+	t.Run("10_times", func(t *testing.T) {
+		b := false
+		for range 10 {
+			b = !b
+			l.outputs[io.Discard].enabled = b
+			assert.Equal(t, b, l.outputs[io.Discard].IsEnabled())
+		}
 	})
 }

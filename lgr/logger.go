@@ -29,6 +29,10 @@ func InitWithParams(level LogLevel, fallback outType, outputs ...outType) *logge
 	return l
 }
 
+func (st *outContext) IsEnabled() bool {
+	return st.enabled
+}
+
 func (l *logger) Start(buffsize int) error {
 	l.sync.statMtx.Lock()
 	defer l.sync.statMtx.Unlock()
@@ -122,26 +126,26 @@ func (l *logger) operateOutputs(slice []outType, operation func(m *outList, k ou
 
 func (l *logger) SetLevelPrefix(output outType, prefixmap *LevelMap, delimiter string) *logger {
 	return l.changeOutSettings(output, func(s *outContext) {
-		s.prefixmap = prefixmap
-		s.delimiter = []byte(delimiter)
+		s.SetPrefix(prefixmap)
+		s.SetDelimiter(delimiter)
 	})
 }
 
 func (l *logger) SetLevelColor(output outType, colormap *LevelMap) *logger {
 	return l.changeOutSettings(output, func(s *outContext) {
-		s.colormap = colormap
+		s.SetColor(colormap)
 	})
 }
 
 func (l *logger) SetTimeFormat(output outType, format string) *logger {
 	return l.changeOutSettings(output, func(s *outContext) {
-		s.timefmt = format
+		s.SetTimeFormat(format)
 	})
 }
 
 func (l *logger) ShowLevelCode(output outType) *logger {
 	return l.changeOutSettings(output, func(s *outContext) {
-		s.lvlcode = true
+		s.ShowLevelCode()
 	})
 }
 
@@ -150,4 +154,35 @@ func (l *logger) changeOutSettings(output outType, f func(s *outContext)) *logge
 		f(l.outputs[output])
 	}
 	return l
+}
+
+// Getters /////////////////////////////////////////////
+func (l *logger) Context(output outType) *outContext {
+	return l.outputs[output]
+}
+
+// Setters /////////////////////////////////////////////
+func (st *outContext) SetDelimiter(delimiter string) *outContext {
+	st.delimiter = []byte(delimiter)
+	return st
+}
+
+func (st *outContext) SetPrefix(prefixmap *LevelMap) *outContext {
+	st.prefixmap = prefixmap
+	return st
+}
+
+func (st *outContext) SetColor(colormap *LevelMap) *outContext {
+	st.colormap = colormap
+	return st
+}
+
+func (st *outContext) SetTimeFormat(timeformat string) *outContext {
+	st.timefmt = timeformat
+	return st
+}
+
+func (st *outContext) ShowLevelCode() *outContext {
+	st.showlvlid = true
+	return st
 }

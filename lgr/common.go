@@ -82,7 +82,7 @@ var LevelFullNames = &LevelMap{
 	"UNMASKABLE", //LVL_UNMASKABLE
 }
 
-var ColorOnBlackMap = &LevelMap{
+var LevelColorOnBlackMap = &LevelMap{
 	"9;90",     //LVL_UNKNOWN
 	"2;90",     //LVL_TRACE
 	"0;90",     //LVL_DEBUG

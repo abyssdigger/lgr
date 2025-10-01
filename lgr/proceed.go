@@ -89,40 +89,42 @@ func (l *logger) handleLogWriteError(errormsg string) {
 	}
 }
 
-func buildTextMessage(msg *logMessage, deco *outContext) *bytes.Buffer {
+func buildTextMessage(msg *logMessage, context *outContext) *bytes.Buffer {
 	outBuffer.Reset()
-	level := normLevel(msg.level)
-	withColor := deco != nil && deco.colormap != nil
-	withPrefix := deco != nil && deco.prefixmap != nil
-	if len(deco.timefmt) > 0 {
-		outBuffer.WriteString(msg.msgtime.Format(deco.timefmt))
-	}
-	if deco.lvlcode {
-		if _LVL_MAX_for_checks_only <= 10 {
-			outBuffer.WriteByte('[')
-			outBuffer.WriteByte('0' + byte(msg.level))
-			outBuffer.WriteByte(']')
-		} else {
-			fmt.Fprintf(outBuffer, "[%d]", msg.level)
+	if msg != nil {
+		level := normLevel(msg.level)
+		withColor := false
+		if context != nil {
+			if len(context.timefmt) > 0 {
+				outBuffer.WriteString(msg.msgtime.Format(context.timefmt))
+			}
+			if context.showlvlid {
+				if _LVL_MAX_for_checks_only <= 10 {
+					outBuffer.Write([]byte{'[', '0' + byte(msg.level), ']'})
+				} else {
+					fmt.Fprintf(outBuffer, "[%d]", msg.level)
+				}
+			}
+			if context.prefixmap != nil {
+				outBuffer.WriteString(context.prefixmap[level])
+				outBuffer.Write(context.delimiter)
+			}
+			if context.colormap != nil {
+				withColor = true
+				outBuffer.WriteString(ANSI_COL_PRFX)
+				outBuffer.WriteString(context.colormap[level])
+				outBuffer.WriteString(ANSI_COL_SUFX)
+			}
+			if msg.msgclnt != nil {
+				outBuffer.Write(msg.msgclnt.name)
+				outBuffer.Write(context.delimiter)
+			}
 		}
+		outBuffer.Write(msg.msgdata)
+		if withColor {
+			outBuffer.WriteString(ANSI_COL_RESET)
+		}
+		outBuffer.WriteByte('\n')
 	}
-	if withPrefix {
-		outBuffer.WriteString(deco.prefixmap[level])
-		outBuffer.Write(deco.delimiter)
-	}
-	if withColor {
-		outBuffer.WriteString(ANSI_COL_PRFX)
-		outBuffer.WriteString(deco.colormap[level])
-		outBuffer.WriteString(ANSI_COL_SUFX)
-	}
-	if msg.msgclnt != nil {
-		outBuffer.Write(msg.msgclnt.name)
-		outBuffer.Write(deco.delimiter)
-	}
-	outBuffer.Write(msg.msgdata)
-	if withColor {
-		outBuffer.WriteString(ANSI_COL_RESET)
-	}
-	outBuffer.WriteByte('\n')
 	return outBuffer
 }
