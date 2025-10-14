@@ -16,10 +16,6 @@ func (l *logger) NewClient(name string, level LogLevel) *logClient {
 	return client
 }
 
-/*func (l *logger) DelClient(lc *logClient) {
-	delete(l.clients, lc)
-}*/
-
 func (lc *logClient) Log_with_err(level LogLevel, s string) (time.Time, error) {
 	return lc.LogBytes_with_err(level, []byte(s))
 }

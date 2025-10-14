@@ -5,8 +5,6 @@ import (
 	"fmt"
 )
 
-var outBuffer = bytes.NewBuffer(make([]byte, DEFAULT_OUT_BUFF))
-
 func (l *logger) setState(newstate lgrState) {
 	l.sync.statMtx.Lock()
 	defer l.sync.statMtx.Unlock()
@@ -14,15 +12,17 @@ func (l *logger) setState(newstate lgrState) {
 }
 
 func (l *logger) procced() {
+	l.outbuf = bytes.NewBuffer(make([]byte, DEFAULT_OUT_BUFF))
 	defer func() {
 		if r := recover(); r != nil {
 			fmt.Fprintf(l.fallbck, "panic proceeding log: %v\n", r)
 		}
+		l.outbuf = nil
+		l.setState(STATE_STOPPED)
 	}()
 	for {
 		msg, opened := <-l.channel
 		if !opened {
-			l.setState(STATE_STOPPED)
 			break
 		}
 		err := l.proceedMsg(&msg)
@@ -74,7 +74,7 @@ func (l *logger) logData(output outType, msg *logMessage) (panicked bool, err er
 		}
 	}()
 	//n, err := output.Write(databuff)
-	n, err := buildTextMessage(msg, l.outputs[output]).WriteTo(output)
+	n, err := buildTextMessage(l.outbuf, msg, l.outputs[output]).WriteTo(output)
 	if err != nil {
 		err = fmt.Errorf("error writing log to output `%v` (%d bytes written): %v", output, n, err)
 	}
@@ -89,7 +89,7 @@ func (l *logger) handleLogWriteError(errormsg string) {
 	}
 }
 
-func buildTextMessage(msg *logMessage, context *outContext) *bytes.Buffer {
+func buildTextMessage(outBuffer *bytes.Buffer, msg *logMessage, context *outContext) *bytes.Buffer {
 	outBuffer.Reset()
 	if msg != nil {
 		level := normLevel(msg.level)

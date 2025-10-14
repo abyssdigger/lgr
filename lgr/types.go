@@ -1,6 +1,7 @@
 package lgr
 
 import (
+	"bytes"
 	"io"
 	"sync"
 	"time"
@@ -11,8 +12,6 @@ type lgrState byte
 type msgType byte
 type outType io.Writer
 type outList map[outType]*outContext
-
-//type clientMap map[*logClient]bool
 
 type logMessage struct {
 	msgclnt *logClient
@@ -33,7 +32,7 @@ type outContext struct {
 	colormap  *LevelMap // logLevel-associated ANSI terminal color
 	prefixmap *LevelMap // logLevel-associated prefix
 	delimiter []byte    // added after client name and prefix (usualy ":")
-	timefmt   string    // as in time.Format(), no timestamp on ""
+	timefmt   string    // as in time.Format(), if "" then no timestamp
 	showlvlid bool      // show [<msg.level>] (after time)
 	enabled   bool      // enable write message to output if set
 }
@@ -51,6 +50,7 @@ type logger struct {
 	outputs outList
 	fallbck outType
 	channel chan logMessage
+	outbuf  *bytes.Buffer
 	state   lgrState
 	level   LogLevel
 }
