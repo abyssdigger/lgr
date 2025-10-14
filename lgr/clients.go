@@ -5,62 +5,26 @@ import (
 	"time"
 )
 
-func (l *logger) NewClient(name string, level LogLevel) *logClient {
-	client := &logClient{
-		logger:   l,
-		name:     []byte(name),
-		level:    normLevel(level),
-		curLevel: LVL_UNKNOWN,
-	}
-	//l.clients[client] = true // For further "disable client"
-	return client
-}
+// Log message (basic is Log() )
 
 func (lc *logClient) Log_with_err(level LogLevel, s string) (time.Time, error) {
 	return lc.LogBytes_with_err(level, []byte(s))
 }
 
 func (lc *logClient) LogBytes_with_err(level LogLevel, data []byte) (t time.Time, err error) {
-	t = time.Now()
-	l := lc.logger
-	if l == nil {
+	if lc.logger == nil {
 		return t, fmt.Errorf("logger is nil")
 	}
-	if l.level >= _LVL_MAX_for_checks_only {
+	if lc.logger.level >= _LVL_MAX_for_checks_only {
 		//For testing purposes only, should never happen in real code
 		//because SetLogLevel() prevents setting invalid levels
 		panic("panic on forbidden log level")
 	}
-	if level < lc.level || level < l.level {
+	if level < lc.minLevel || level < lc.logger.level {
 		return
 	}
-	defer func() {
-		if r := recover(); r != nil {
-			err = fmt.Errorf("panic [%v]", r)
-		}
-	}()
-	l.sync.statMtx.RLock()
-	defer l.sync.statMtx.RUnlock()
-	if !l.IsActive() {
-		return t, fmt.Errorf("logger is not active")
-	} else {
-		if l.channel == nil {
-			return t, fmt.Errorf("logger channel is nil")
-		}
-		// will panic if channel is closed (with recover and setting error)
-		l.channel <- lc.makeTextMessage(t, level, data)
-	}
-	return
-}
-
-func (lc *logClient) makeTextMessage(time time.Time, level LogLevel, data []byte) logMessage {
-	return logMessage{
-		msgtype: MSG_LOG_TEXT,
-		msgclnt: lc,
-		msgtime: time,
-		msgdata: data,
-		level:   level,
-	}
+	t, err = lc.logger.pushMessage(makeTextMessage(lc, level, data))
+	return t, err
 }
 
 func (lc *logClient) Log(level LogLevel, s string) time.Time {
@@ -99,6 +63,7 @@ func (lc *logClient) LogErr(e error) time.Time {
 	return lc.LogBytes(LVL_ERROR, []byte(e.Error()))
 }
 
+/////////////////////////////////////////////////////////////////////////////////////
 // io.Writer interface implementation (just to exist)
 // * common usage: fmt.Fprintf(C.Lvl(LVL_WARN), "warning: %s happened in module %s", text, modulename)
 // * with preset curLevel: fmt.Fprintf(C, "something %s in %s", text, somewhere)

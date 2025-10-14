@@ -12,12 +12,12 @@ func (l *logger) setState(newstate lgrState) {
 }
 
 func (l *logger) procced() {
-	l.outbuf = bytes.NewBuffer(make([]byte, DEFAULT_OUT_BUFF))
+	l.msgbuf = bytes.NewBuffer(make([]byte, DEFAULT_OUT_BUFF))
 	defer func() {
 		if r := recover(); r != nil {
 			fmt.Fprintf(l.fallbck, "panic proceeding log: %v\n", r)
 		}
-		l.outbuf = nil
+		l.msgbuf = nil
 		l.setState(STATE_STOPPED)
 	}()
 	for {
@@ -33,9 +33,15 @@ func (l *logger) procced() {
 }
 
 func (l *logger) proceedMsg(msg *logMessage) error {
+	l.sync.procMtx.RLock()
+	defer func() {
+		l.sync.procMtx.RUnlock()
+	}()
 	switch msg.msgtype {
 	case MSG_LOG_TEXT:
 		l.logTextToOutputs(msg)
+	case MSG_COMMAND:
+		l.proceedCmd(msg)
 	case MSG_FORBIDDEN:
 		// For testing purposes only
 		panic(fmt.Sprintf("panic on forbidden message type %d", msg.msgtype))
@@ -45,9 +51,36 @@ func (l *logger) proceedMsg(msg *logMessage) error {
 	return nil
 }
 
+func (l *logger) proceedCmd(msg *logMessage) {
+	l.sync.clntMtx.RLock()
+	defer l.sync.clntMtx.RUnlock()
+	errstr := ""
+	if msg == nil {
+		errstr = "nil command message, nothing to proceed"
+	} else {
+		switch cmdType(msg.annex) {
+		case CMD_SET_CLIENT_MINLEVEL:
+			if len(msg.msgdata) < 1 {
+				errstr = "no level in command message"
+			} else if msg.msgclnt == nil {
+				errstr = "nil client in command message"
+			} else {
+				msg.msgclnt.minLevel = normLevel(LogLevel(msg.msgdata[0]))
+			}
+		case CMD_DUMMY:
+			// do nothing
+		case CMD_PING_FALLBACK:
+			errstr = "<ping>"
+		default:
+			errstr = fmt.Sprintf("unknown command %d (data: %v)", msg.annex, msg.msgdata)
+		}
+	}
+	if len(errstr) > 0 {
+		l.handleLogWriteError(errstr)
+	}
+}
+
 func (l *logger) logTextToOutputs(msg *logMessage) {
-	l.sync.outsMtx.RLock()
-	defer l.sync.outsMtx.RUnlock()
 	for output, settings := range l.outputs {
 		if settings.enabled && output != nil {
 			panicked, err := l.logData(output, msg)
@@ -65,7 +98,9 @@ func (l *logger) logTextToOutputs(msg *logMessage) {
 func (l *logger) logData(output outType, msg *logMessage) (panicked bool, err error) {
 	// only returns of named result values can be changed by defer:
 	// https://bytegoblin.io/blog/golang-magic-modify-return-value-using-deferred-function
+	var n int64
 	panicked = false
+	proceed := true
 	err = nil
 	defer func() {
 		if r := recover(); r != nil {
@@ -74,9 +109,15 @@ func (l *logger) logData(output outType, msg *logMessage) (panicked bool, err er
 		}
 	}()
 	//n, err := output.Write(databuff)
-	n, err := buildTextMessage(l.outbuf, msg, l.outputs[output]).WriteTo(output)
-	if err != nil {
-		err = fmt.Errorf("error writing log to output `%v` (%d bytes written): %v", output, n, err)
+	context := l.outputs[output]
+	if context != nil {
+		proceed = LogLevel(msg.annex) >= context.minlevel
+	}
+	if proceed {
+		n, err = buildTextMessage(l.msgbuf, msg, context).WriteTo(output)
+		if err != nil {
+			err = fmt.Errorf("error writing log to output `%v` (%d bytes written): %v", output, n, err)
+		}
 	}
 	return
 }
@@ -92,17 +133,17 @@ func (l *logger) handleLogWriteError(errormsg string) {
 func buildTextMessage(outBuffer *bytes.Buffer, msg *logMessage, context *outContext) *bytes.Buffer {
 	outBuffer.Reset()
 	if msg != nil {
-		level := normLevel(msg.level)
+		level := normLevel(LogLevel(msg.annex))
 		withColor := false
 		if context != nil {
 			if len(context.timefmt) > 0 {
-				outBuffer.WriteString(msg.msgtime.Format(context.timefmt))
+				outBuffer.WriteString(msg.pushed.Format(context.timefmt))
 			}
 			if context.showlvlid {
 				if _LVL_MAX_for_checks_only <= 10 {
-					outBuffer.Write([]byte{'[', '0' + byte(msg.level), ']'})
+					outBuffer.Write([]byte{'[', '0' + byte(msg.annex), ']'})
 				} else {
-					fmt.Fprintf(outBuffer, "[%d]", msg.level)
+					fmt.Fprintf(outBuffer, "[%d]", msg.annex)
 				}
 			}
 			if context.prefixmap != nil {

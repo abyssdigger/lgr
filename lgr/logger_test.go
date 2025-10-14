@@ -202,7 +202,7 @@ func TestLogger_setState(t *testing.T) {
 		for i := range rng {
 			l.setState(lgrState(i))
 			res := lgrState(i)
-			if res >= _STATE_MAX_FOR_CHECKS_ONLY {
+			if res >= _STATE_MAX_for_checks_only {
 				res = STATE_UNKNOWN
 			}
 			assert.Equal(t, res, l.state)
@@ -437,7 +437,7 @@ func Test_logger_SetLevelPrefix(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := l.SetLevelPrefix(out1, tt.prefixmap, tt.delimiter)
+			got := l.SetOutputLevelPrefix(out1, tt.prefixmap, tt.delimiter)
 			assert.Equal(t, l, got, "wrong return (must be self)")
 			assert.Equal(t, tt.prefixmap, l.outputs[out1].prefixmap, "wrong prefixmap assignment")
 			assert.Equal(t, tt.delimiter, string(l.outputs[out1].delimiter), "wrong delimiter assignment")
@@ -458,9 +458,29 @@ func Test_logger_SetLevelColor(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := l.SetLevelColor(out1, tt.colormap)
+			got := l.SetOutputLevelColor(out1, tt.colormap)
 			assert.Equal(t, l, got, "wrong return (must be self)")
 			assert.Equal(t, tt.colormap, l.outputs[out1].colormap, "wrong colormap assignment")
+		})
+	}
+}
+
+func Test_logger_SetMinLevel(t *testing.T) {
+	out1 := &FakeWriter{}
+	l := Init(out1)
+	tests := []struct {
+		name string // description of this test case
+		val  LogLevel
+	}{
+		{"normal", LVL_INFO},
+		{"zero", LVL_UNKNOWN},
+		{"overmax", _LVL_MAX_for_checks_only},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := l.SetOutputMinLevel(out1, tt.val)
+			assert.Equal(t, l, got, "wrong return (must be self)")
+			assert.Equal(t, normLevel(tt.val), l.outputs[out1].minlevel, "wrong level assignment")
 		})
 	}
 }
@@ -479,12 +499,13 @@ func Test_logger_SetTimeFormat(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := l.SetTimeFormat(out1, tt.timefmt)
+			got := l.SetOutputTimeFormat(out1, tt.timefmt)
 			assert.Equal(t, l, got, "wrong return (must be self)")
 			assert.Equal(t, tt.timefmt, l.outputs[out1].timefmt, "wrong time format assignment")
 		})
 	}
 }
+
 func Test_logger_ShowLevelCode(t *testing.T) {
 	out1 := &FakeWriter{}
 	l := Init(out1)
@@ -496,7 +517,7 @@ func Test_logger_ShowLevelCode(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := l.ShowLevelCode(out1)
+			got := l.ShowOutputLevelCode(out1)
 			assert.Equal(t, l, got, "wrong return (must be self)")
 			assert.True(t, l.outputs[out1].showlvlid, "showlvlid is unset")
 		})
@@ -513,4 +534,76 @@ func Test_outContext_IsEnabled(t *testing.T) {
 			assert.Equal(t, b, l.outputs[io.Discard].IsEnabled())
 		}
 	})
+}
+
+func Test_logger_NewClient(t *testing.T) {
+	var l *logger
+	var lc *logClient
+	prep := func(lvl LogLevel, name string) {
+		l = Init()
+		assert.NotPanics(t, func() {
+			lc = l.NewClient(name, lvl)
+		}, "Panic new client")
+		assert.NotNil(t, lc, "nil client")
+		assert.Equal(t, []byte(name), lc.name, "wrong name")
+	}
+	t.Run("new_client_correct_level", func(t *testing.T) {
+		for lvl := range LogLevel(255) {
+			prep(lvl, "[Testing client name]")
+			assert.Equal(t, normLevel(lvl), lc.minLevel, "wrong max level")
+		}
+	})
+}
+
+func Test_logger_PushClientMinLevel(t *testing.T) {
+	ferr1 := &FakeWriter{}
+	ferr2 := &FakeWriter{}
+	out1 := &FakeWriter{}
+	out2 := &FakeWriter{}
+	l1 := Init(out1)
+	l1.SetFallback(ferr1)
+	lc1 := l1.NewClient("lc1", LVL_UNKNOWN)
+	l2 := Init(out2)
+	l2.SetFallback(ferr2)
+	lc2 := l2.NewClient("lc2", LVL_UNMASKABLE)
+	l2.Start(0)
+
+	tests := []struct {
+		name     string // description of this test case
+		lc       *logClient
+		minlevel LogLevel
+		wantErr  string
+	}{
+		{"normal", lc1, LVL_UNMASKABLE, ""},
+		{"unknown_level", lc1, _LVL_MAX_for_checks_only + 10, ""},
+		{"nil_client", nil, LVL_UNMASKABLE, "client is nil"},
+		{"alien_client", lc2, LVL_UNMASKABLE, "alien client"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ferr1.Clear()
+			ferr2.Clear()
+			out1.Clear()
+			out2.Clear()
+			l1.Start(0)
+			got, gotErr := l1.PushClientMinLevel(tt.lc, tt.minlevel)
+			l1.StopAndWait()
+			if tt.wantErr == "" {
+				res := ""
+				if gotErr != nil {
+					res = gotErr.Error()
+				}
+				assert.Empty(t, gotErr, "unexpected error: '"+res+"'")
+				assert.WithinDuration(t, time.Now(), got, time.Second*5, "wrong timestamp")
+				assert.Equal(t, normLevel(tt.minlevel), tt.lc.minLevel, "wrong level setting")
+			} else {
+				assert.NotNil(t, gotErr, "no error")
+				assert.ErrorContains(t, gotErr, tt.wantErr, "wrong error")
+			}
+			assert.Empty(t, out1.String(), "output1 is not empty")
+			assert.Empty(t, out2.String(), "output2 is not empty")
+			assert.Empty(t, ferr1.String(), "fallback1 is not empty")
+			assert.Empty(t, ferr2.String(), "fallback1 is not empty")
+		})
+	}
 }

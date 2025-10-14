@@ -23,18 +23,25 @@ const (
 	STATE_ACTIVE
 	STATE_STOPPING
 	STATE_STOPPED
-	_STATE_MAX_FOR_CHECKS_ONLY
+	_STATE_MAX_for_checks_only
 )
 
 const (
 	MSG_FORBIDDEN msgType = iota
 	MSG_LOG_TEXT
-	MSG_CHG_LEVEL
+	MSG_COMMAND
 	_MSG_MAX_FOR_CHECKS_ONLY
 )
 
+const (
+	CMD_DUMMY cmdType = iota
+	CMD_SET_CLIENT_MINLEVEL
+	CMD_PING_FALLBACK
+	_CMD_MAX_FOR_CHECKS_ONLY
+)
+
 func normState(state lgrState) lgrState {
-	return norm_byte(state, _STATE_MAX_FOR_CHECKS_ONLY, STATE_UNKNOWN)
+	return norm_byte(state, _STATE_MAX_for_checks_only, STATE_UNKNOWN)
 }
 
 func normLevel(level LogLevel) LogLevel {

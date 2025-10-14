@@ -6,6 +6,7 @@ import (
 	"maps"
 	"os"
 	"slices"
+	"time"
 )
 
 func InitAndStart(buffsize int, outputs ...outType) (l *logger) {
@@ -124,33 +125,41 @@ func (l *logger) operateOutputs(slice []outType, operation func(m *outList, k ou
 
 // Settings //////////////////////////////////////////
 
-func (l *logger) SetLevelPrefix(output outType, prefixmap *LevelMap, delimiter string) *logger {
+func (l *logger) SetOutputLevelPrefix(output outType, prefixmap *LevelMap, delimiter string) *logger {
 	return l.changeOutSettings(output, func(s *outContext) {
 		s.SetPrefix(prefixmap)
 		s.SetDelimiter(delimiter)
 	})
 }
 
-func (l *logger) SetLevelColor(output outType, colormap *LevelMap) *logger {
+func (l *logger) SetOutputLevelColor(output outType, colormap *LevelMap) *logger {
 	return l.changeOutSettings(output, func(s *outContext) {
 		s.SetColor(colormap)
 	})
 }
 
-func (l *logger) SetTimeFormat(output outType, format string) *logger {
+func (l *logger) SetOutputTimeFormat(output outType, format string) *logger {
 	return l.changeOutSettings(output, func(s *outContext) {
 		s.SetTimeFormat(format)
 	})
 }
 
-func (l *logger) ShowLevelCode(output outType) *logger {
+func (l *logger) ShowOutputLevelCode(output outType) *logger {
 	return l.changeOutSettings(output, func(s *outContext) {
 		s.ShowLevelCode()
 	})
 }
 
+func (l *logger) SetOutputMinLevel(output outType, minlevel LogLevel) *logger {
+	return l.changeOutSettings(output, func(s *outContext) {
+		s.SetMinLevel(minlevel)
+	})
+}
+
 func (l *logger) changeOutSettings(output outType, f func(s *outContext)) *logger {
 	if l.outputs[output] != nil {
+		l.sync.outsMtx.Lock()
+		defer l.sync.outsMtx.Unlock()
 		f(l.outputs[output])
 	}
 	return l
@@ -185,4 +194,81 @@ func (st *outContext) SetTimeFormat(timeformat string) *outContext {
 func (st *outContext) ShowLevelCode() *outContext {
 	st.showlvlid = true
 	return st
+}
+
+func (st *outContext) SetMinLevel(minlevel LogLevel) *outContext {
+	st.minlevel = normLevel(minlevel)
+	return st
+}
+
+// Messages manipulations ///////////////////////////////
+
+func (l *logger) pushMessage(msg *logMessage) (t time.Time, err error) {
+	l.sync.statMtx.RLock()
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("panic [%v]", r)
+		}
+		l.sync.statMtx.RUnlock()
+	}()
+	t = time.Now()
+	if msg == nil {
+		err = fmt.Errorf("log message is nil")
+	} else {
+		msg.pushed = t
+		if !l.IsActive() {
+			err = fmt.Errorf("logger is not active")
+		} else {
+			if l.channel == nil {
+				err = fmt.Errorf("logger channel is nil")
+			} else {
+				// will panic if channel is closed (with recover and setting error)
+				l.channel <- *msg
+			}
+		}
+	}
+	return t, err
+}
+
+func makeTextMessage(lc *logClient, level LogLevel, data []byte) *logMessage {
+	return &logMessage{
+		msgtype: MSG_LOG_TEXT,
+		msgclnt: lc,
+		msgdata: data,
+		annex:   basetype(level),
+	}
+}
+
+func makeCmdMessage(lc *logClient, cmd cmdType, data []byte) *logMessage {
+	return &logMessage{
+		msgtype: MSG_COMMAND,
+		msgclnt: lc,
+		msgdata: data,
+		annex:   basetype(cmd),
+	}
+}
+
+// Client manipulation ///////////////////////////////
+
+func (l *logger) NewClient(name string, minlevel LogLevel) *logClient {
+	client := &logClient{
+		logger:   l,
+		name:     []byte(name),
+		minLevel: normLevel(minlevel),
+		curLevel: LVL_UNKNOWN,
+	}
+	//l.clients[client] = true // For further "disable client"
+	return client
+}
+
+func (l *logger) PushClientMinLevel(lc *logClient, minlevel LogLevel) (t time.Time, err error) {
+	// Change client settings by commands (sent messages has to be printed with previous settings)
+	if lc == nil {
+		err = fmt.Errorf("client is nil")
+	} else if lc.logger != l {
+		err = fmt.Errorf("alien client (belongs to nil or another logger)")
+	} else {
+		t, err = l.pushMessage(makeCmdMessage(lc, CMD_SET_CLIENT_MINLEVEL, []byte{byte(minlevel)}))
+	}
+	return t, err
 }

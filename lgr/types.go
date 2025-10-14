@@ -7,24 +7,27 @@ import (
 	"time"
 )
 
-type LogLevel byte
-type lgrState byte
-type msgType byte
+type basetype byte
+
+type LogLevel basetype
+type lgrState basetype
+type msgType basetype
+type cmdType basetype
 type outType io.Writer
 type outList map[outType]*outContext
 
 type logMessage struct {
+	pushed  time.Time
 	msgclnt *logClient
-	msgtime time.Time
 	msgdata []byte
 	msgtype msgType
-	level   LogLevel
+	annex   basetype
 }
 
 type logClient struct {
 	logger   *logger
 	name     []byte
-	level    LogLevel
+	minLevel LogLevel
 	curLevel LogLevel
 }
 
@@ -35,6 +38,7 @@ type outContext struct {
 	timefmt   string    // as in time.Format(), if "" then no timestamp
 	showlvlid bool      // show [<msg.level>] (after time)
 	enabled   bool      // enable write message to output if set
+	minlevel  LogLevel  // minimal level to log
 }
 
 type logger struct {
@@ -44,13 +48,14 @@ type logger struct {
 		outsMtx sync.RWMutex
 		chngMtx sync.RWMutex
 		clntMtx sync.RWMutex
+		procMtx sync.RWMutex
 		waitEnd sync.WaitGroup
 	}
 	//clients clientMap
 	outputs outList
 	fallbck outType
 	channel chan logMessage
-	outbuf  *bytes.Buffer
+	msgbuf  *bytes.Buffer
 	state   lgrState
 	level   LogLevel
 }
