@@ -29,6 +29,7 @@ type logClient struct {
 	name     []byte
 	minLevel LogLevel
 	curLevel LogLevel
+	enabled  bool
 }
 
 type outContext struct {
@@ -51,7 +52,6 @@ type logger struct {
 		procMtx sync.RWMutex
 		waitEnd sync.WaitGroup
 	}
-	//clients clientMap
 	outputs outList
 	fallbck outType
 	channel chan logMessage

@@ -4,11 +4,57 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io"
+	"os"
+	"strconv"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 )
+
+func Test_logClient_JustVisualTest(t *testing.T) {
+	var logger = InitWithParams(LVL_UNKNOWN, os.Stderr, nil) //...Default()
+	var alter1 = *os.Stdout
+	var alter2 = *os.Stdout
+	res1 := &alter1
+	res2 := &alter2
+	outs := [...]io.Writer{nil, res1, os.Stdout, res2, os.Stderr}
+	for i := 1; i <= len(outs); i++ {
+		t.Run("Stage #"+strconv.Itoa(i), func(t *testing.T) {
+			logger.Start(32)
+			logger.AddOutputs(outs[i-1])
+			logger.SetOutputLevelPrefix(os.Stderr, LevelShortNames, "\t")
+			logger.SetOutputLevelPrefix(res1, LevelFullNames, " --> ")
+			logger.SetOutputLevelColor(res1, LevelColorOnBlackMap)
+			logger.SetOutputLevelPrefix(res2, LevelShortNames, "|")
+			logger.SetOutputLevelColor(os.Stdout, LevelColorOnBlackMap)
+			logger.SetOutputTimeFormat(res1, "2006-01-02 15:04:05 ")
+			logger.SetOutputTimeFormat(os.Stderr, "2006-01-02 15:04:05 ")
+			logger.ShowOutputLevelCode(os.Stderr)
+			lclient1 := logger.NewClient("<Тестовое имя Name>", LVL_UNMASKABLE+1)
+			lclient2 := logger.NewClient("^china 你好 прочая^", LVL_UNMASKABLE+1)
+			for j := range LogLevel(LVL_UNMASKABLE + 1 + 1) {
+				_, err := lclient1.Log_with_err(j, "LOG! #"+fmt.Sprint(j+1))
+				if err != nil {
+					fmt.Println("Error1:", err)
+				} else {
+					_, err := lclient2.Log_with_err(j, "ЛОГ? №"+fmt.Sprint(j+1))
+					if err != nil {
+						fmt.Println("Error1:", err)
+						assert.NoError(t, err, "unexpected error '"+err.Error()+"'")
+					}
+				}
+			}
+			fmt.Println("Stopping logger...")
+			logger.StopAndWait()
+			logger.ClearOutputs()
+			fmt.Println("*** FINITA LA COMEDIA #", i, "***")
+			time.Sleep(100 * time.Millisecond)
+		})
+	}
+}
 
 func Test_logClient_Log_with_err(t *testing.T) {
 	var msg *logMessage
@@ -144,7 +190,7 @@ func Test_logClient_Log_with_err(t *testing.T) {
 		}, "Panic on write")
 		assert.Equal(t, buildTextMessage(outBuffer, msg, l.Context(out1)).Bytes(), out1.buffer)
 		assert.Equal(t, buildTextMessage(outBuffer, msg, l.Context(out2)).Bytes(), out2.buffer)
-		assert.Contains(t, ferr.String(), panicStr+"\n")
+		assert.Contains(t, ferr.String(), panicStr+"`\n")
 		assert.Contains(t, ferr.String(), errorStr+"\n")
 	})
 	t.Run("level_masked", func(t *testing.T) {
@@ -253,62 +299,72 @@ func Test_logClient_Lvl(t *testing.T) {
 }
 
 func Test_logClient_Write(t *testing.T) {
+	outBuffer := bytes.NewBuffer(make([]byte, DEFAULT_OUT_BUFF))
 	ferr := &FakeWriter{}
 	out1 := &FakeWriter{}
-	l := Init(out1)
-	l.SetOutputLevelColor(out1, LevelColorOnBlackMap).SetOutputLevelPrefix(out1, LevelFullNames, " !delimiter! ")
+	l := Init()
 	l.SetFallback(ferr)
 	lc := l.NewClient(testlogstr, LVL_UNKNOWN)
-	t.Run("nil_message", func(t *testing.T) {
+
+	prep := func() {
+		outBuffer.Reset()
 		out1.Clear()
 		ferr.Clear()
-		l.Start(0)
-		lc.Lvl(LVL_UNMASKABLE)
-		n, err := lc.Write(nil)
-		assert.NoError(t, err)
-		assert.Zero(t, n)
-		l.StopAndWait()
-		assert.Empty(t, ferr.buffer)
-		assert.Empty(t, out1.buffer)
-	})
-	t.Run("full_message", func(t *testing.T) {
-		outBuffer := bytes.NewBuffer(make([]byte, DEFAULT_OUT_BUFF))
-		out1.Clear()
-		ferr.Clear()
-		l.Start(0)
-		n, err := fmt.Fprint(lc.Lvl(LVL_UNMASKABLE), testlogstr)
-		assert.NoError(t, err)
-		assert.Equal(t, n, len(testbytes))
-		l.StopAndWait()
-		msg := makeTextMessage(lc, LVL_UNMASKABLE, []byte(testlogstr))
-		assert.Empty(t, ferr.buffer)
-		assert.Equal(t, buildTextMessage(outBuffer, msg, l.outputs[out1]).Bytes(), out1.buffer)
-	})
-	t.Run("not_active", func(t *testing.T) {
-		out1.Clear()
-		ferr.Clear()
-		n, err := fmt.Fprint(lc.Lvl(LVL_UNMASKABLE), testlogstr)
-		assert.ErrorContains(t, err, "not active")
-		l.Start(0)
-		l.StopAndWait()
-		assert.Empty(t, out1.buffer)
-		assert.Empty(t, ferr.buffer)
-		assert.Zero(t, n)
-	})
-	t.Run("error_out", func(t *testing.T) {
-		outBuffer := bytes.NewBuffer(make([]byte, DEFAULT_OUT_BUFF))
-		out1.Clear()
-		ferr.Clear()
-		short := "!"
-		l.AddOutputs(&ErrorWriter{}, &PanicWriter{})
-		l.Start(0)
-		n, err := fmt.Fprint(lc.Lvl(LVL_UNMASKABLE), short)
-		assert.NoError(t, err)
-		assert.Equal(t, n, len(short))
-		l.StopAndWait()
-		msg := makeTextMessage(lc, LVL_UNMASKABLE, []byte(short))
-		assert.Contains(t, ferr.String(), errorStr)
-		assert.Contains(t, ferr.String(), panicStr)
-		assert.Equal(t, buildTextMessage(outBuffer, msg, l.outputs[out1]).Bytes(), out1.buffer)
-	})
+		l.ClearOutputs()
+		l.AddOutputs(out1)
+		l.SetOutputLevelColor(out1, LevelColorOnBlackMap).SetOutputLevelPrefix(out1, LevelFullNames, " !delimiter! ")
+	}
+
+	for range 5 {
+		t.Run("error_out", func(t *testing.T) {
+			prep()
+			short := "!test!"
+			l.AddOutputs(&ErrorWriter{}, &PanicWriter{}, &NilPanicWriter{}, &ZeroPanicWriter{})
+			l.SetOutputLevelColor(os.Stdout, LevelColorOnBlackMap).SetOutputLevelPrefix(out1, LevelFullNames, " !delimiter! ")
+			l.Start(0)
+			n, err := fmt.Fprint(lc.Lvl(LVL_UNMASKABLE), short)
+			//n, err := lc.Lvl(LVL_UNMASKABLE).Write([]byte(short))
+			assert.NoError(t, err)
+			assert.Equal(t, n, len(short))
+			l.StopAndWait()
+			msg := makeTextMessage(lc, LVL_UNMASKABLE, []byte(short))
+			assert.Contains(t, ferr.String(), errorStr+"\n")
+			assert.Contains(t, ferr.String(), "`"+panicStr+"`\n")
+			assert.Equal(t, 1, strings.Count(ferr.String(), UNKNOWN_PANIC_TEXT+"\n"))
+			assert.Equal(t, buildTextMessage(outBuffer, msg, l.outputs[out1]).Bytes(), out1.buffer)
+			assert.Equal(t, buildTextMessage(outBuffer, msg, l.outputs[out1]).String(), out1.String())
+		})
+		t.Run("nil_message", func(t *testing.T) {
+			prep()
+			l.Start(0)
+			lc.Lvl(LVL_UNMASKABLE)
+			n, err := lc.Write(nil)
+			assert.NoError(t, err)
+			assert.Zero(t, n)
+			l.StopAndWait()
+			assert.Empty(t, ferr.buffer)
+			assert.Empty(t, out1.buffer)
+		})
+		t.Run("full_message", func(t *testing.T) {
+			prep()
+			l.Start(0)
+			n, err := fmt.Fprint(lc.Lvl(LVL_UNMASKABLE), testlogstr)
+			assert.NoError(t, err)
+			assert.Equal(t, n, len(testbytes))
+			l.StopAndWait()
+			msg := makeTextMessage(lc, LVL_UNMASKABLE, []byte(testlogstr))
+			assert.Empty(t, ferr.buffer)
+			assert.Equal(t, buildTextMessage(outBuffer, msg, l.outputs[out1]).Bytes(), out1.buffer)
+		})
+		t.Run("not_active", func(t *testing.T) {
+			prep()
+			n, err := fmt.Fprint(lc.Lvl(LVL_UNMASKABLE), testlogstr)
+			assert.ErrorContains(t, err, "not active")
+			l.Start(0)
+			l.StopAndWait()
+			assert.Empty(t, out1.buffer)
+			assert.Empty(t, ferr.buffer)
+			assert.Zero(t, n)
+		})
+	}
 }

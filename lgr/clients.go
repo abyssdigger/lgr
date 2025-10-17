@@ -1,6 +1,7 @@
 package lgr
 
 import (
+	"errors"
 	"fmt"
 	"time"
 )
@@ -18,9 +19,9 @@ func (lc *logClient) LogBytes_with_err(level LogLevel, data []byte) (t time.Time
 	if lc.logger.level >= _LVL_MAX_for_checks_only {
 		//For testing purposes only, should never happen in real code
 		//because SetLogLevel() prevents setting invalid levels
-		panic("panic on forbidden log level")
+		panic(errors.New("panic on forbidden log level"))
 	}
-	if level < lc.minLevel || level < lc.logger.level {
+	if !lc.enabled || level < lc.minLevel || level < lc.logger.level {
 		return
 	}
 	t, err = lc.logger.pushMessage(makeTextMessage(lc, level, data))

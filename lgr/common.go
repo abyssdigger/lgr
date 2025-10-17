@@ -34,10 +34,11 @@ const (
 )
 
 const (
-	CMD_DUMMY cmdType = iota
-	CMD_SET_CLIENT_MINLEVEL
-	CMD_PING_FALLBACK
-	_CMD_MAX_FOR_CHECKS_ONLY
+	CMD_DUMMY, _CMD_MIN_for_checks_only cmdType = iota, iota
+	CMD_CLIENT_DUMMY, _CMD_CLIENT_commands_min
+	CMD_CLIENT_SET_LEVEL, _
+	CMD_CLIENT_SET_NAME, _CMD_CLIENT_commands_max
+	CMD_PING_FALLBACK, _CMD_MAX_for_checks_only
 )
 
 func normState(state lgrState) lgrState {
@@ -98,4 +99,18 @@ var LevelColorOnBlackMap = &LevelMap{
 	"0;91",     //LVL_ERROR
 	"101;1;33", //LVL_FATAL
 	"107;1;31", //LVL_UNMASKABLE
+}
+
+const UNKNOWN_PANIC_TEXT = "[no panic description]"
+
+func panicDesc(panic any) (errtext string) {
+	switch v := panic.(type) {
+	case string:
+		errtext = ": `" + v + "`"
+	case error:
+		errtext = ": (error) `" + v.Error() + "`"
+	default:
+		errtext = " " + UNKNOWN_PANIC_TEXT
+	}
+	return errtext
 }

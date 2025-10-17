@@ -29,7 +29,8 @@ func st1() {
 		lclient1 := logger.NewClient("<Тестовое имя Name>", lgr.LVL_UNMASKABLE+1)
 		lclient2 := logger.NewClient("^china 你好 прочая^", lgr.LVL_UNMASKABLE+1)
 		for j := range lgr.LogLevel(lgr.LVL_UNMASKABLE + 1 + 1) {
-			_, err := lclient1.Log_with_err(j, "LOG! #"+fmt.Sprint(j+1))
+			//_, err := lclient1.Log_with_err(j, "LOG! #"+fmt.Sprint(j+1))
+			_, err := fmt.Fprint(lclient1.Lvl(j), "LOG! #"+fmt.Sprint(j+1))
 			if err != nil {
 				fmt.Println("Error1:", err)
 			} else {

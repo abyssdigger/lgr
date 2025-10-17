@@ -4,6 +4,7 @@ import (
 	"errors"
 	"io"
 	"os"
+	"runtime"
 	"strconv"
 	"testing"
 	"time"
@@ -18,6 +19,16 @@ const errorStr = "error generated in writer"
 type PanicWriter struct{}
 
 func (p *PanicWriter) Write(b []byte) (int, error) { panic(panicStr) }
+
+type NilPanicWriter struct{}
+
+func (p *NilPanicWriter) Write(b []byte) (int, error) { panic(&runtime.PanicNilError{}) }
+
+// &runtime.PanicNilError{} instead of nil to prevent VSC problem "panic with nil value"
+
+type ZeroPanicWriter struct{}
+
+func (p *ZeroPanicWriter) Write(b []byte) (int, error) { panic(0) }
 
 type ErrorWriter struct{}
 
@@ -87,7 +98,7 @@ func Test_logger_AddOutputs(t *testing.T) {
 	})
 }
 
-func TestLogger_ClearOutputs(t *testing.T) {
+func Test_logger_ClearOutputs(t *testing.T) {
 	tests := []struct {
 		name    string // description of this test case
 		outputs []outType
@@ -109,7 +120,7 @@ func TestLogger_ClearOutputs(t *testing.T) {
 	}
 }
 
-func TestLogger_RemoveOutputs(t *testing.T) {
+func Test_logger_RemoveOutputs(t *testing.T) {
 	tests := []struct {
 		wants   int
 		name    string // description of this test case
@@ -147,7 +158,7 @@ func TestLogger_RemoveOutputs(t *testing.T) {
 	}
 }
 
-func TestLogger_SetFallback(t *testing.T) {
+func Test_logger_SetFallback(t *testing.T) {
 	tests := []struct {
 		name     string // description of this test case
 		fallback outType
@@ -168,7 +179,7 @@ func TestLogger_SetFallback(t *testing.T) {
 	}
 }
 
-func TestLogger_IsActive(t *testing.T) {
+func Test_logger_IsActive(t *testing.T) {
 	l := Init()
 	rng := 256
 	t.Run("one_from_255", func(t *testing.T) {
@@ -179,7 +190,7 @@ func TestLogger_IsActive(t *testing.T) {
 	})
 }
 
-func TestLogger_SetLogLevel(t *testing.T) {
+func Test_logger_SetLogLevel(t *testing.T) {
 	l := Init()
 	rng := 255
 	t.Run("only_valid_from_255", func(t *testing.T) {
@@ -195,7 +206,7 @@ func TestLogger_SetLogLevel(t *testing.T) {
 	})
 }
 
-func TestLogger_setState(t *testing.T) {
+func Test_logger_setState(t *testing.T) {
 	l := Init()
 	rng := 255
 	t.Run("only_valid_from_255", func(t *testing.T) {
@@ -210,7 +221,7 @@ func TestLogger_setState(t *testing.T) {
 	})
 }
 
-func TestLogger_Start(t *testing.T) {
+func Test_logger_Start(t *testing.T) {
 	t.Run("normal", func(t *testing.T) {
 		l := Init()
 		err := l.Start(0)
@@ -224,7 +235,7 @@ func TestLogger_Start(t *testing.T) {
 		assert.Nil(t, err, "error on first start")
 		err = l.Start(0)
 		assert.NotNil(t, err, "no error on double start")
-		assert.ErrorContains(t, err, "allready started", "wrong error on double start")
+		assert.EqualError(t, err, ERROR_MESSAGE_LOGGER_STARTED, "wrong error on double start")
 		assert.Equal(t, STATE_ACTIVE, l.state, "wrong state after double start")
 		l.StopAndWait()
 	})
@@ -236,7 +247,7 @@ func TestLogger_Start(t *testing.T) {
 		l.StopAndWait()
 	})
 }
-func TestLogger_Stop(t *testing.T) {
+func Test_logger_Stop(t *testing.T) {
 	t.Run("normal", func(t *testing.T) {
 		l := Init()
 		err := l.Start(0)
@@ -258,7 +269,7 @@ func TestLogger_Stop(t *testing.T) {
 	})
 }
 
-func TestLogger_Wait(t *testing.T) {
+func Test_logger_Wait(t *testing.T) {
 	t.Run("normal", func(t *testing.T) {
 		l := Init()
 		err := l.Start(0)
@@ -296,7 +307,7 @@ func TestLogger_Wait(t *testing.T) {
 	})
 }
 
-func TestLogger_StopAndWait(t *testing.T) {
+func Test_logger_StopAndWait(t *testing.T) {
 	t.Run("normal", func(t *testing.T) {
 		l := Init()
 		err := l.Start(0)
@@ -555,7 +566,115 @@ func Test_logger_NewClient(t *testing.T) {
 	})
 }
 
-func Test_logger_PushClientMinLevel(t *testing.T) {
+func Test_logger_pushMessage(t *testing.T) {
+	ferr := &FakeWriter{}
+	out1 := &FakeWriter{}
+	tests := []struct {
+		name    string // description of this test case
+		msg     *logMessage
+		started bool
+		nilchan bool
+		state   lgrState
+		wantErr string
+	}{
+		// TODO: Add test cases.
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			l := Init(out1)
+			l.SetFallback(ferr)
+			if tt.started {
+				l.Start(0)
+			}
+			if tt.nilchan {
+				l.channel = nil
+			}
+			l.state = tt.state
+			t0 := time.Now()
+			tm, gotErr := l.pushMessage(tt.msg)
+			t1 := time.Now()
+			if tt.started {
+				l.StopAndWait()
+			}
+			assert.WithinRange(t, tm, t0, t1)
+			res := gotErr.Error()
+			if tt.wantErr == "" {
+				assert.NoError(t, gotErr, "unexpected error: '"+res+"'")
+			} else {
+				assert.Contains(t, res, tt.wantErr, "wrong error text")
+			}
+		})
+	}
+}
+
+func Test_logger_runClientCommand(t *testing.T) {
+	ferr1 := &FakeWriter{}
+	ferr2 := &FakeWriter{}
+	out1 := &FakeWriter{}
+	out2 := &FakeWriter{}
+	l1 := Init(out1)
+	l1.SetFallback(ferr1)
+	l1.state = STATE_ACTIVE
+	lc1 := l1.NewClient("lc1", LVL_UNKNOWN)
+	l2 := Init(out2)
+	l2.SetFallback(ferr2)
+	lc2 := l2.NewClient("lc2", LVL_UNMASKABLE)
+	lcnil := l2.NewClient("lc2", LVL_UNMASKABLE)
+	lcnil.logger = nil
+
+	type testType struct {
+		name    string // description of this test case
+		lc      *logClient
+		cmd     cmdType
+		wantMsg bool
+		wantErr string
+	}
+	tests := []testType{
+		{"nil_client", nil, CMD_CLIENT_DUMMY, false, ERROR_MESSAGE_CLIENT_IS_NIL},
+		{"alien_client", lc2, CMD_CLIENT_DUMMY, false, ERROR_MESSAGE_CLIENT_IS_ALIEN},
+		{"orphan_client", lcnil, CMD_CLIENT_DUMMY, false, ERROR_MESSAGE_CLIENT_IS_ALIEN},
+		{"wrong_command", lc1, _CMD_MAX_for_checks_only + 10, false, ERROR_MESSAGE_NON_CLIENT_CMD},
+	}
+	for i := _CMD_CLIENT_commands_min; i <= _CMD_CLIENT_commands_max; i++ {
+		tests = append(tests, testType{"cmd_" + strconv.Itoa(int(i)), lc1, i, true, ""})
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ferr1.Clear()
+			ferr2.Clear()
+			out1.Clear()
+			out2.Clear()
+			l2.Start(0)
+			l1.channel = make(chan logMessage, 1)
+			defer close(l1.channel)
+			t0 := time.Now()
+			got, gotErr := l1.runClientCommand(tt.lc, tt.cmd, []byte(testlogstr))
+			t1 := time.Now()
+			select {
+			case msg := <-l1.channel:
+				assert.True(t, tt.wantMsg, "forbidden sending to channel")
+				assert.ElementsMatch(t, []byte(testlogstr), msg.msgdata, "command data changed after channel")
+				if tt.wantErr == "" {
+					assert.NoError(t, gotErr, "unexpected error")
+					assert.WithinRange(t, got, t0, t1, "wrong timestamp")
+				} else {
+					assert.Zero(t, got, "non-zero time returned on error")
+					assert.NotNil(t, gotErr, "no error")
+					assert.ErrorContains(t, gotErr, tt.wantErr, "wrong error")
+				}
+			default:
+				assert.False(t, tt.wantMsg, "message is not sent to channel")
+			}
+			l2.StopAndWait()
+			assert.Empty(t, out1.String(), "output1 is not empty")
+			assert.Empty(t, out2.String(), "output2 is not empty")
+			assert.Empty(t, ferr1.String(), "fallback1 is not empty")
+			assert.Empty(t, ferr2.String(), "fallback1 is not empty")
+		})
+	}
+}
+
+func Test_logger_SetClientMinLevel(t *testing.T) {
 	ferr1 := &FakeWriter{}
 	ferr2 := &FakeWriter{}
 	out1 := &FakeWriter{}
@@ -567,6 +686,8 @@ func Test_logger_PushClientMinLevel(t *testing.T) {
 	l2.SetFallback(ferr2)
 	lc2 := l2.NewClient("lc2", LVL_UNMASKABLE)
 	l2.Start(0)
+	lcnil := l2.NewClient("lc2", LVL_UNMASKABLE)
+	lcnil.logger = nil
 
 	tests := []struct {
 		name     string // description of this test case
@@ -576,8 +697,9 @@ func Test_logger_PushClientMinLevel(t *testing.T) {
 	}{
 		{"normal", lc1, LVL_UNMASKABLE, ""},
 		{"unknown_level", lc1, _LVL_MAX_for_checks_only + 10, ""},
-		{"nil_client", nil, LVL_UNMASKABLE, "client is nil"},
-		{"alien_client", lc2, LVL_UNMASKABLE, "alien client"},
+		{"nil_client", nil, LVL_UNMASKABLE, ERROR_MESSAGE_CLIENT_IS_NIL},
+		{"alien_client", lc2, LVL_UNMASKABLE, ERROR_MESSAGE_CLIENT_IS_ALIEN},
+		{"orphan_client", lcnil, LVL_UNMASKABLE, ERROR_MESSAGE_CLIENT_IS_ALIEN},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -586,7 +708,7 @@ func Test_logger_PushClientMinLevel(t *testing.T) {
 			out1.Clear()
 			out2.Clear()
 			l1.Start(0)
-			got, gotErr := l1.PushClientMinLevel(tt.lc, tt.minlevel)
+			got, gotErr := l1.SetClientMinLevel(tt.lc, tt.minlevel)
 			l1.StopAndWait()
 			if tt.wantErr == "" {
 				res := ""
@@ -603,7 +725,7 @@ func Test_logger_PushClientMinLevel(t *testing.T) {
 			assert.Empty(t, out1.String(), "output1 is not empty")
 			assert.Empty(t, out2.String(), "output2 is not empty")
 			assert.Empty(t, ferr1.String(), "fallback1 is not empty")
-			assert.Empty(t, ferr2.String(), "fallback1 is not empty")
+			assert.Empty(t, ferr2.String(), "fallback2 is not empty")
 		})
 	}
 }

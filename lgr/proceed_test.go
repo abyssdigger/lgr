@@ -76,7 +76,7 @@ func TestLogger_procced(t *testing.T) {
 		l.StopAndWait() // set state to STOPPING,
 		assert.Equal(t, s+"\n", out1.String())
 		assert.Equal(t, s+"\n", out2.String())
-		assert.Contains(t, ferr.String(), panicStr+"\n")
+		assert.Contains(t, ferr.String(), "`"+panicStr+"`\n")
 	})
 	t.Run("procced_unknown_msgtype", func(t *testing.T) {
 		ferr := &FakeWriter{}
@@ -126,7 +126,7 @@ func TestLogger_logData(t *testing.T) {
 			foutput.Clear()
 			l := Init()
 			l.msgbuf = bytes.NewBuffer(make([]byte, DEFAULT_OUT_BUFF))
-			gotPnc, gotErr := l.logData(tt.output, &logMessage{msgtype: 99, msgdata: tt.data})
+			gotPnc, gotErr := l.logTextData(tt.output, &logMessage{msgtype: 99, msgdata: tt.data})
 			assert.True(t, !tt.wantPnc || gotPnc, "did not panic when expected")
 			assert.True(t, !tt.wantErr || gotErr != nil, "no error on expected failure")
 			assert.False(t, !tt.wantPnc && gotPnc, "unexpected panic")
@@ -232,7 +232,7 @@ func TestLogger_logTextToOutputs(t *testing.T) {
 		l.logTextToOutputs(msg)
 		assert.Equal(t, string(msg.msgdata)+"\n", out1.String())
 		assert.Equal(t, string(msg.msgdata)+"\n", out2.String())
-		assert.Contains(t, ferr.String(), panicStr+"\n")
+		assert.Contains(t, ferr.String(), panicStr+"`\n")
 	})
 	t.Run("with_error", func(t *testing.T) {
 		out1.Clear()
@@ -255,7 +255,7 @@ func TestLogger_logTextToOutputs(t *testing.T) {
 		assert.Equal(t, string(msg.msgdata)+"\n", out1.String())
 		assert.Equal(t, string(msg.msgdata)+"\n", out2.String())
 		assert.Contains(t, ferr.String(), errorStr+"\n")
-		assert.Contains(t, ferr.String(), panicStr+"\n")
+		assert.Contains(t, ferr.String(), panicStr+"`\n")
 	})
 	t.Run("with_both_no_fallback", func(t *testing.T) {
 		out1.Clear()
@@ -436,13 +436,13 @@ func Test_logger_proceedCmd(t *testing.T) {
 		nomsg   bool
 		wantErr string
 	}{
-		{"min_level", CMD_SET_CLIENT_MINLEVEL, lc1, []byte{byte(LVL_FATAL)}, false, ""},
-		{"min_level_no_data", CMD_SET_CLIENT_MINLEVEL, lc1, []byte{}, false, "no level"},
-		{"min_level_nil_client", CMD_SET_CLIENT_MINLEVEL, nil, []byte{byte(LVL_FATAL)}, false, "nil client"},
+		{"min_level", CMD_CLIENT_SET_LEVEL, lc1, []byte{byte(LVL_FATAL)}, false, ""},
+		{"min_level_no_data", CMD_CLIENT_SET_LEVEL, lc1, []byte{}, false, "no data"},
+		{"min_level_nil_client", CMD_CLIENT_SET_LEVEL, nil, []byte{byte(LVL_FATAL)}, false, "nil client"},
 		{"empty", CMD_DUMMY, nil, []byte{}, true, "nil command message"},
 		{"dummy", CMD_DUMMY, nil, []byte{}, false, ""},
 		{"ping", CMD_PING_FALLBACK, nil, []byte{}, false, "<ping>"},
-		{"unknown", _CMD_MAX_FOR_CHECKS_ONLY + 10, nil, []byte{}, false, "unknown command"},
+		{"unknown", _CMD_MAX_for_checks_only + 10, nil, []byte{}, false, "unknown command"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

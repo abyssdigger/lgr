@@ -1,12 +1,24 @@
 package lgr
 
 import (
-	"fmt"
+	"errors"
 	"io"
 	"maps"
 	"os"
 	"slices"
 	"time"
+)
+
+const (
+	ERROR_MESSAGE_LOGGER_STARTED  = "logger is allready started"
+	ERROR_MESSAGE_LOGGER_INACTIVE = "logger is not active"
+	ERROR_MESSAGE_CHANNEL_IS_NIL  = "logger channel is nil"
+	ERROR_MESSAGE_LOG_MSG_IS_NIL  = "log message is nil"
+	ERROR_MESSAGE_CLIENT_IS_ALIEN = "logger client is nil or alien (belongs to another logger or nil)"
+	ERROR_MESSAGE_CLIENT_IS_NIL   = "client is nil"
+	ERROR_MESSAGE_NON_CLIENT_CMD  = "non-client command"
+	ERROR_MESSAGE_CMD_EMPTY_DATA  = "no data in command message"
+	ERROR_MESSAGE_CMD_NIL_CLIENT  = "nil client in command message"
 )
 
 func InitAndStart(buffsize int, outputs ...outType) (l *logger) {
@@ -23,7 +35,6 @@ func InitWithParams(level LogLevel, fallback outType, outputs ...outType) *logge
 	l := new(logger)
 	l.state = STATE_STOPPED
 	l.outputs = outList{}
-	//l.clients = clientMap{}
 	l.SetMinLevel(level)
 	l.SetFallback(fallback)
 	l.AddOutputs(outputs...)
@@ -38,7 +49,7 @@ func (l *logger) Start(buffsize int) error {
 	l.sync.statMtx.Lock()
 	defer l.sync.statMtx.Unlock()
 	if l.IsActive() {
-		return fmt.Errorf("logger is allready started")
+		return errors.New(ERROR_MESSAGE_LOGGER_STARTED)
 	}
 	if buffsize <= 0 {
 		buffsize = DEFAULT_MSG_BUFF
@@ -207,20 +218,20 @@ func (l *logger) pushMessage(msg *logMessage) (t time.Time, err error) {
 	l.sync.statMtx.RLock()
 	defer func() {
 		if r := recover(); r != nil {
-			err = fmt.Errorf("panic [%v]", r)
+			err = errors.New("panic" + panicDesc(r))
 		}
 		l.sync.statMtx.RUnlock()
 	}()
 	t = time.Now()
 	if msg == nil {
-		err = fmt.Errorf("log message is nil")
+		err = errors.New(ERROR_MESSAGE_LOG_MSG_IS_NIL)
 	} else {
 		msg.pushed = t
 		if !l.IsActive() {
-			err = fmt.Errorf("logger is not active")
+			err = errors.New(ERROR_MESSAGE_LOGGER_INACTIVE)
 		} else {
 			if l.channel == nil {
-				err = fmt.Errorf("logger channel is nil")
+				err = errors.New(ERROR_MESSAGE_CHANNEL_IS_NIL)
 			} else {
 				// will panic if channel is closed (with recover and setting error)
 				l.channel <- *msg
@@ -256,19 +267,57 @@ func (l *logger) NewClient(name string, minlevel LogLevel) *logClient {
 		name:     []byte(name),
 		minLevel: normLevel(minlevel),
 		curLevel: LVL_UNKNOWN,
+		enabled:  true,
 	}
 	//l.clients[client] = true // For further "disable client"
 	return client
 }
 
-func (l *logger) PushClientMinLevel(lc *logClient, minlevel LogLevel) (t time.Time, err error) {
-	// Change client settings by commands (sent messages has to be printed with previous settings)
+func (l *logger) checkClient(lc *logClient) (err error) {
 	if lc == nil {
-		err = fmt.Errorf("client is nil")
+		err = errors.New(ERROR_MESSAGE_CLIENT_IS_NIL)
 	} else if lc.logger != l {
-		err = fmt.Errorf("alien client (belongs to nil or another logger)")
-	} else {
-		t, err = l.pushMessage(makeCmdMessage(lc, CMD_SET_CLIENT_MINLEVEL, []byte{byte(minlevel)}))
+		err = errors.New(ERROR_MESSAGE_CLIENT_IS_ALIEN)
+	}
+	return
+}
+
+func (l *logger) SetClientEnabled(lc *logClient, enabled bool) (err error) {
+	if err = l.checkClient(lc); err == nil {
+		lc.enabled = enabled
+	}
+	return
+}
+
+// Level and name changes must not apply to allready queued messages so implemented as queued command
+func (l *logger) SetClientMinLevel(lc *logClient, minlevel LogLevel) (t time.Time, err error) {
+	return l.runClientCommand(lc, CMD_CLIENT_SET_LEVEL, []byte{byte(minlevel)})
+}
+
+func (l *logger) SetClientName(lc *logClient, newname string) (time.Time, error) {
+	return l.runClientCommand(lc, CMD_CLIENT_SET_NAME, []byte(newname))
+}
+
+func (l *logger) runClientCommand(lc *logClient, cmd cmdType, data []byte) (t time.Time, err error) {
+	// Change client settings by commands (sent messages has to be printed with previous settings)
+	err = l.checkClient(lc)
+	if err == nil {
+		if cmd < _CMD_CLIENT_commands_min || cmd > _CMD_CLIENT_commands_max {
+			err = errors.New(ERROR_MESSAGE_NON_CLIENT_CMD)
+		} else {
+			t, err = l.pushMessage(makeCmdMessage(lc, cmd, data))
+		}
 	}
 	return t, err
+}
+
+func clientChangeFromCmdMsg(msg *logMessage, f func(*logClient, []byte)) (errstr string) {
+	if len(msg.msgdata) < 1 {
+		errstr = ERROR_MESSAGE_CMD_EMPTY_DATA
+	} else if msg.msgclnt == nil {
+		errstr = ERROR_MESSAGE_CMD_NIL_CLIENT
+	} else {
+		f(msg.msgclnt, msg.msgdata)
+	}
+	return
 }
