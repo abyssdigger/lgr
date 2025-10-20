@@ -30,7 +30,7 @@ const (
 	MSG_FORBIDDEN msgType = iota
 	MSG_LOG_TEXT
 	MSG_COMMAND
-	_MSG_MAX_FOR_CHECKS_ONLY
+	_MSG_MAX_for_checks_only
 )
 
 const (

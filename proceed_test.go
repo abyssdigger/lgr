@@ -20,9 +20,9 @@ func TestLogger_proceedMsg(t *testing.T) {
 		msg logMessage
 	}{
 		// TODO: Add test cases.
-		{false, "log_msgtype", logMessage{msgtype: MSG_LOG_TEXT, msgdata: testbytes}},
-		{true, "unused_msgtype", logMessage{msgtype: _MSG_MAX_FOR_CHECKS_ONLY, msgdata: testbytes}},
-		{true, "unknown_msgtype", logMessage{msgtype: 99, msgdata: testbytes}},
+		{false, "log_msgtype", logMessage{msgtype: MSG_LOG_TEXT, msgdata: testbytes, annex: basetype(DEFAULT_LOG_LEVEL)}},
+		{true, "unused_msgtype", logMessage{msgtype: _MSG_MAX_for_checks_only, msgdata: testbytes, annex: basetype(DEFAULT_LOG_LEVEL)}},
+		{true, "unknown_msgtype", logMessage{msgtype: _MSG_MAX_for_checks_only + 10, msgdata: testbytes, annex: basetype(DEFAULT_LOG_LEVEL)}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -58,7 +58,7 @@ func TestLogger_procced(t *testing.T) {
 		out1 := &FakeWriter{}
 		out2 := &FakeWriter{}
 		s := "Write to 2 outputs"
-		l := InitWithParams(LVL_TRACE, nil, out1, out2)
+		l := InitWithParams(LVL_UNKNOWN, nil, out1, out2)
 		l.Start(0) // start procced goroutine
 		l.channel <- logMessage{msgtype: MSG_LOG_TEXT, msgdata: []byte(s)}
 		l.StopAndWait() // set state to STOPPING,
@@ -70,7 +70,7 @@ func TestLogger_procced(t *testing.T) {
 		out2 := &FakeWriter{}
 		ferr := &FakeWriter{}
 		s := "Write to 2 outputs and 1 panic"
-		l := InitWithParams(LVL_TRACE, ferr, out1, &PanicWriter{}, out2)
+		l := InitWithParams(LVL_UNKNOWN, ferr, out1, &PanicWriter{}, out2)
 		l.Start(0) // start procced goroutine
 		l.channel <- logMessage{msgtype: MSG_LOG_TEXT, msgdata: []byte(s)}
 		l.StopAndWait() // set state to STOPPING,
@@ -178,7 +178,7 @@ func TestLogger_logTextToOutputs(t *testing.T) {
 	ferr := &FakeWriter{}
 	t.Run("one_out", func(t *testing.T) {
 		out1.Clear()
-		l := InitWithParams(LVL_TRACE, nil, out1)
+		l := InitWithParams(LVL_UNKNOWN, nil, out1)
 		l.msgbuf = bytes.NewBuffer(make([]byte, DEFAULT_OUT_BUFF))
 		l.logTextToOutputs(msg)
 		assert.Equal(t, string(msg.msgdata)+"\n", out1.String())
@@ -186,7 +186,7 @@ func TestLogger_logTextToOutputs(t *testing.T) {
 	t.Run("two_outs", func(t *testing.T) {
 		out1.Clear()
 		out2.Clear()
-		l := InitWithParams(LVL_TRACE, nil, out1, out2)
+		l := InitWithParams(LVL_UNKNOWN, nil, out1, out2)
 		l.msgbuf = bytes.NewBuffer(make([]byte, DEFAULT_OUT_BUFF))
 		l.logTextToOutputs(msg)
 		assert.Equal(t, string(msg.msgdata)+"\n", out1.String())
@@ -195,7 +195,7 @@ func TestLogger_logTextToOutputs(t *testing.T) {
 	t.Run("two_outs_one_write", func(t *testing.T) {
 		out1.Clear()
 		out2.Clear()
-		l := InitWithParams(LVL_TRACE, nil, out1, out2)
+		l := InitWithParams(LVL_UNKNOWN, nil, out1, out2)
 		l.outputs[out2].minlevel = LVL_TRACE
 		l.msgbuf = bytes.NewBuffer(make([]byte, DEFAULT_OUT_BUFF))
 		l.logTextToOutputs(msg)
@@ -203,7 +203,7 @@ func TestLogger_logTextToOutputs(t *testing.T) {
 		assert.Empty(t, out2.buffer, "unexpected write to outpus with lower level: ["+out2.String()+"], len="+strconv.Itoa(len(out2.buffer)))
 	})
 	t.Run("no_outputs_no_fallback", func(t *testing.T) {
-		l := InitWithParams(LVL_TRACE, nil)
+		l := InitWithParams(LVL_UNKNOWN, nil)
 		l.msgbuf = bytes.NewBuffer(make([]byte, DEFAULT_OUT_BUFF))
 		assert.NotPanics(t, func() {
 			l.logTextToOutputs(msg)
@@ -211,14 +211,14 @@ func TestLogger_logTextToOutputs(t *testing.T) {
 	})
 	t.Run("no_outputs", func(t *testing.T) {
 		ferr.Clear()
-		l := InitWithParams(LVL_TRACE, ferr)
+		l := InitWithParams(LVL_UNKNOWN, ferr)
 		assert.NotPanics(t, func() {
 			l.logTextToOutputs(msg)
 		}, "Panic on write to nil outputs")
 		assert.Equal(t, "", ferr.String())
 	})
 	t.Run("nil_outs", func(t *testing.T) {
-		l := InitWithParams(LVL_TRACE, ferr, nil, nil)
+		l := InitWithParams(LVL_UNKNOWN, ferr, nil, nil)
 		assert.NotPanics(t, func() {
 			l.logTextToOutputs(msg)
 		}, "Panic on write to nil outputs")
@@ -227,7 +227,7 @@ func TestLogger_logTextToOutputs(t *testing.T) {
 		out1.Clear()
 		out2.Clear()
 		ferr.Clear()
-		l := InitWithParams(LVL_TRACE, ferr, out1, &PanicWriter{}, out2)
+		l := InitWithParams(LVL_UNKNOWN, ferr, out1, &PanicWriter{}, out2)
 		l.msgbuf = bytes.NewBuffer(make([]byte, DEFAULT_OUT_BUFF))
 		l.logTextToOutputs(msg)
 		assert.Equal(t, string(msg.msgdata)+"\n", out1.String())
@@ -238,7 +238,7 @@ func TestLogger_logTextToOutputs(t *testing.T) {
 		out1.Clear()
 		out2.Clear()
 		ferr.Clear()
-		l := InitWithParams(LVL_TRACE, ferr, out1, &ErrorWriter{}, out2)
+		l := InitWithParams(LVL_UNKNOWN, ferr, out1, &ErrorWriter{}, out2)
 		l.msgbuf = bytes.NewBuffer(make([]byte, DEFAULT_OUT_BUFF))
 		l.logTextToOutputs(msg)
 		assert.Equal(t, string(msg.msgdata)+"\n", out1.String())
@@ -249,7 +249,7 @@ func TestLogger_logTextToOutputs(t *testing.T) {
 		out1.Clear()
 		out2.Clear()
 		ferr.Clear()
-		l := InitWithParams(LVL_TRACE, ferr, out1, &ErrorWriter{}, &PanicWriter{}, out2)
+		l := InitWithParams(LVL_UNKNOWN, ferr, out1, &ErrorWriter{}, &PanicWriter{}, out2)
 		l.msgbuf = bytes.NewBuffer(make([]byte, DEFAULT_OUT_BUFF))
 		l.logTextToOutputs(msg)
 		assert.Equal(t, string(msg.msgdata)+"\n", out1.String())
@@ -260,7 +260,7 @@ func TestLogger_logTextToOutputs(t *testing.T) {
 	t.Run("with_both_no_fallback", func(t *testing.T) {
 		out1.Clear()
 		out2.Clear()
-		l := InitWithParams(LVL_TRACE, nil, out1, &ErrorWriter{}, &PanicWriter{}, out2)
+		l := InitWithParams(LVL_UNKNOWN, nil, out1, &ErrorWriter{}, &PanicWriter{}, out2)
 		l.msgbuf = bytes.NewBuffer(make([]byte, DEFAULT_OUT_BUFF))
 		assert.NotPanics(t, func() {
 			l.logTextToOutputs(msg)
@@ -272,7 +272,7 @@ func TestLogger_logTextToOutputs(t *testing.T) {
 		out1.Clear()
 		out2.Clear()
 		ferr.Clear()
-		l := InitWithParams(LVL_TRACE, ferr, out1, out2)
+		l := InitWithParams(LVL_UNKNOWN, ferr, out1, out2)
 		l.msgbuf = bytes.NewBuffer(make([]byte, DEFAULT_OUT_BUFF))
 		l.outputs[out1].enabled = false
 		l.outputs[out2].enabled = false
@@ -285,7 +285,7 @@ func TestLogger_logTextToOutputs(t *testing.T) {
 		out1.Clear()
 		out2.Clear()
 		ferr.Clear()
-		l := InitWithParams(LVL_TRACE, ferr, out1, out2)
+		l := InitWithParams(LVL_UNKNOWN, ferr, out1, out2)
 		l.msgbuf = bytes.NewBuffer(make([]byte, DEFAULT_OUT_BUFF))
 		l.outputs[out1].enabled = true
 		l.outputs[out2].enabled = false
