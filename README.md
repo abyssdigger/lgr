@@ -68,7 +68,7 @@ logger.SetOutputLevelColor(os.Stdout, lgr.LevelColorOnBlackMap)
 logger.SetOutputTimeFormat(os.Stdout, "2006-01-02 15:04:05 ")
 logger.ShowOutputLevelCode(os.Stdout)
 // All together:
-logger.SetOutputLevelPrefix(myLogFile, lgr.LevelFullNames, "| ").SetOutputTimeFormat(os.Stdout, "2006-01-02 15:04:05 ").ShowOutputLevelCode(os.Stdout)
+logger.SetOutputLevelPrefix(myLogFile, lgr.LevelFullNames, "| ").SetOutputTimeFormat(myLogFile, "2006-01-02 15:04:05 ").ShowOutputLevelCode(myLogFile)
 ```
 
 ## Log Level Filtering
