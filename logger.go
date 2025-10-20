@@ -70,7 +70,7 @@ func (st *outContext) IsEnabled() bool {
 
 // Start launches the background goroutine that processes queued messages.
 // If the logger is already active an error is returned. The channel is
-// created with the provided buffsize (falls back to DEFAULT_MSG_BUFF).
+// created with the provided buffsize (lgr.DEFAULT_MSG_BUFF if negative).
 //
 // The started goroutine will run l.procced() and is tracked by the internal
 // wait group so callers can Wait() for graceful shutdown.
@@ -146,7 +146,8 @@ func (l *logger) IsActive() bool {
 func (l *logger) AddOutputs(outputs ...outType) *logger {
 	l.operateOutputs(outputs, func(m *outList, k outType) {
 		(*m)[k] = &outContext{
-			enabled: true,
+			enabled:   true,
+			delimiter: []byte(DEFAULT_DELIMITER),
 		}
 	})
 	return l
@@ -203,7 +204,8 @@ func (l *logger) SetOutputLevelColor(output outType, colormap *LevelMap) *logger
 }
 
 // SetOutputTimeFormat sets the time.Format string used to prefix messages for
-// the specified output. If empty, no timestamp is written.
+// the specified output. If empty, no timestamp is written. Example string:
+// "2006-01-02 15:04:05 " (remember about a delimiter at the end - space in this case)
 func (l *logger) SetOutputTimeFormat(output outType, format string) *logger {
 	return l.changeOutSettings(output, func(s *outContext) {
 		s.SetTimeFormat(format)
