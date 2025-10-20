@@ -1,4 +1,4 @@
-module logger
+module github.com/abyssdigger/lgr
 
 go 1.25.1
 
