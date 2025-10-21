@@ -6,15 +6,15 @@ Provides timestamped, colorized, and filtered log output with per-client and per
 ## Features
 
 - Multiple log levels: TRACE, DEBUG, INFO, WARN, ERROR, FATAL, UNMASKABLE
-- Thread-safe*, buffered logging with background processing
-- In-app logger multiple clients with own names and log level settings
+- Thread-safe*, buffered logging with background processing for minimal goroutines i/o waiting
+- In-app multiple disengageable logger clients with own names and log level settings
 - Per-client and per-output level-based filtering
 - Color and prefix customization per output
 - Fallback writer for error reporting
-- Implements `io.Writer` for use with `fmt.Fprintf` etc 
 - Error-returning and convenience logging methods
+- Implements `io.Writer` for use with `fmt.Fprintf` etc*
 
-_* Be careful with usage as `io.Writer` - fmt module is not thread-safe, so unpredictable side effects can happen when using `fmt.Frint*(client, "message")` by logger clients running in separated goroutines. Use thread-safe `lgr.Log*()` instead._
+_*Be careful with usage as `io.Writer` - fmt module is not thread-safe, so unpredictable side effects can happen when using `fmt.Frint*(client, "message")` by logger clients running in separated goroutines. Use thread-safe `client.Log*()` instead._
 
 ## Basic Usage
 
@@ -45,6 +45,7 @@ client.LogErr(errors.New("network unreachable"))
 ### Using io.Writer Interface
 
 ```go
+// Do not use in goroutines! fmt.Fprint*() is not thread-safe!
 fmt.Fprintf(client.Lvl(lgr.LVL_WARN), "disk space low: %d%%\n", percent)
 ```
 
@@ -74,18 +75,12 @@ logger.SetOutputLevelPrefix(myLogFile, lgr.LevelFullNames, "| ").SetOutputTimeFo
 ## Log Level Filtering
 
 - Each client and output can have its own minimum log level.
-- Messages below the configured levels are ignored.
+- Messages below the configured levels are just ignored.
 
 ## Error Handling
 
 - If a log cannot be delivered, errors are sent to the fallback writer.
 - Use `_with_err` methods to handle errors directly.
-
-## Stopping the Logger
-
-```go
-logger.StopAndWait() // Flush and stop background goroutine (also can be made by separate Stop() and Wait())
-```
 
 ## License
 

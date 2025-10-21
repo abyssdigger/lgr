@@ -22,43 +22,44 @@ messages into writes to configured outputs. Responsible for:
  - error reporting to the fallback writer
 */
 
-// fbckWriteln writes a single-line message to the fallback writer.
+// Helper to write a message to the fallback writer as a single-line.
+//
 // Used to report internal errors encountered in the background goroutine.
 func (l *logger) fbckWriteln(s string) {
 	l.fallbck.Write([]byte(s + "\n"))
 }
 
-// msgDescStr returns a concise one-line description of a logMessage used in
-// debugging/error strings.
+// Returns a compact one-line description of a logMessage used in debugging/error strings.
 func msgDescStr(m *logMessage) string {
 	return "type=" + strconv.Itoa(int(m.msgtype)) +
 		" annex=" + strconv.Itoa(int(m.annex)) +
 		" data=`" + string(m.msgdata) + "`"
 }
 
-// setState sets the logger state with write locking; normalizes the provided
-// state before assignment.
+// Sets the logger normalized state.
+//
+// The operation is protected by mutex for thread safety.
 func (l *logger) setState(newstate lgrState) {
 	l.sync.statMtx.Lock()
 	defer l.sync.statMtx.Unlock()
 	l.state = normState(newstate)
 }
 
-// procced is the background message processing loop. It reads messages from
-// the channel until the channel is closed. For each message it calls
-// proceedMsg to perform the appropriate action.
+// Background message queue and processing loop. It reads messages from the channel
+// until the channel is closed. For each message it calls proceedMsg to perform the
+// appropriate action.
 //
-// The function recovers panics to ensure the background goroutine doesn't die
-// silently; recover triggers a fallback write and ensures state is moved to
-// STATE_STOPPED before returning.
+// The function recovers panics to ensure the background goroutine doesn't die silently;
+// recover triggers a fallback write and ensures logger is moved to stopped state
+// before returning.
 func (l *logger) procced() {
-	l.msgbuf = bytes.NewBuffer(make([]byte, DEFAULT_OUT_BUFF))
+	l.msgbuf = bytes.NewBuffer(make([]byte, _DEFAULT_OUT_BUFF))
 	defer func() {
 		if r := recover(); r != nil {
 			l.fbckWriteln("panic proceeding log" + panicDesc(r))
 		}
 		l.msgbuf = nil
-		l.setState(STATE_STOPPED)
+		l.setState(_STATE_STOPPED)
 	}()
 	for {
 		msg, opened := <-l.channel
@@ -71,41 +72,45 @@ func (l *logger) procced() {
 	}
 }
 
-// proceedMsg dispatches a single message. Commands are executed (proceedCmd)
-// and then converted to a TRACE text message (so commands are visible in the
-// log stream). Text messages are forwarded to outputs. Unknown or forbidden
-// message types produce errors or panics (the latter used for testing).
-func (l *logger) proceedMsg(msg *logMessage) error {
+// Dispatches a single message. Commands are executed (proceedCmd) and then converted
+// to a TRACE text message (so commands are visible in the log stream). Text messages
+// are forwarded to outputs.
+//
+// Unknown message types produce errors, special "forbidden" message type produces
+// panic (used only for testing).
+func (l *logger) proceedMsg(msg *logMessage) (err error) {
 	l.sync.procMtx.RLock()
 	defer func() {
 		l.sync.procMtx.RUnlock()
 	}()
 	switch msg.msgtype {
-	case MSG_COMMAND:
-		if l.proceedCmd(msg) != nil {
+	case _MSG_COMMAND:
+		err = l.proceedCmd(msg)
+		if err != nil {
 			break
 		}
 		// convert successfully executed command message to text with level TRACE
-		msg.msgtype = MSG_LOG_TEXT
-		msg.annex = basetype(LVL_TRACE)
 		msg.msgdata = []byte("<COMMAND: " + msgDescStr(msg) + ">")
+		msg.msgtype = _MSG_LOG_TEXT
+		msg.annex = basetype(LVL_TRACE)
 		fallthrough
-	case MSG_LOG_TEXT:
+	case _MSG_LOG_TEXT:
 		l.logTextToOutputs(msg)
-	case MSG_FORBIDDEN:
+	case _MSG_FORBIDDEN:
 		// For testing purposes only — panic to exercise panic handling
 		panic("panic on forbidden message type: " + msgDescStr(msg))
 	default:
-		return errors.New("unknown message type: " + msgDescStr(msg))
+		err = errors.New("unknown message type: " + msgDescStr(msg))
 	}
-	return nil
+	return
 }
 
-const COMMAND_PING_MESSAGE = "<ping>"
+const _COMMAND_PING_MESSAGE = "<ping>"
 
-// proceedCmd executes a command message. Supported client commands mutate the
-// client settings in-place; any errors or invalid payloads are reported to the
-// fallback writer via handleLogWriteError and returned as an error.
+// Command processor.
+//
+// Any errors or invalid payloads are reported to the
+// fallback writer via handleLogWriteError and also returned as an error.
 func (l *logger) proceedCmd(msg *logMessage) (err error) {
 	l.sync.clntMtx.RLock()
 	defer l.sync.clntMtx.RUnlock()
@@ -114,21 +119,21 @@ func (l *logger) proceedCmd(msg *logMessage) (err error) {
 		errstr = "nil command message, nothing to proceed"
 	} else {
 		switch cmdType(msg.annex) {
-		case CMD_CLIENT_SET_LEVEL:
+		case _CMD_CLIENT_SET_LEVEL:
 			// Expect at least one byte with the new level
 			errstr = clientChangeFromCmdMsg(msg, func(lc *logClient, data []byte) {
 				lc.minLevel = normLevel(LogLevel(data[0]))
 			})
-		case CMD_CLIENT_SET_NAME:
+		case _CMD_CLIENT_SET_NAME:
 			// Replace client name with provided bytes
 			errstr = clientChangeFromCmdMsg(msg, func(lc *logClient, data []byte) {
 				lc.name = data
 			})
-		case CMD_DUMMY, CMD_CLIENT_DUMMY:
+		case _CMD_DUMMY, _CMD_CLIENT_DUMMY:
 			// No-op placeholder commands.
-		case CMD_PING_FALLBACK:
+		case _CMD_PING_FALLBACK:
 			// ping fallback writes a fixed message to indicate the fallback is reachable
-			errstr = COMMAND_PING_MESSAGE
+			errstr = _COMMAND_PING_MESSAGE
 		default:
 			errstr = "unknown command: " + msgDescStr(msg)
 		}
@@ -140,9 +145,10 @@ func (l *logger) proceedCmd(msg *logMessage) (err error) {
 	return
 }
 
-// logTextToOutputs walks the outputs map and attempts to write the provided
-// message to each enabled output. If a write panics the output is disabled to
-// avoid repeated panics; write errors are passed to the fallback writer.
+// Writes the provided text message to each enabled output.
+//
+// Write errors are passed to the fallback writer. The output is disabled on write panic
+// to avoid further repeated panics.
 func (l *logger) logTextToOutputs(msg *logMessage) {
 	for output, settings := range l.outputs {
 		if output != nil && settings != nil && settings.enabled {
@@ -158,10 +164,10 @@ func (l *logger) logTextToOutputs(msg *logMessage) {
 	}
 }
 
-// logTextData formats the message for a single output and writes it. It
-// returns two values: panicked (true if a panic occurred while writing) and
-// err for any write-related error. The deferred recover sets panicked and
-// converts the panic into an error.
+// Writes the text message for a specified output.
+//
+// Return values: panicked (true if a panic occurred while writing) and err for any
+// write-related error. The deferred recover converts the panic into an error.
 func (l *logger) logTextData(output outType, msg *logMessage) (panicked bool, err error) {
 	// only returns of named result values can be changed by defer:
 	// https://bytegoblin.io/blog/golang-magic-modify-return-value-using-deferred-function
@@ -188,8 +194,9 @@ func (l *logger) logTextData(output outType, msg *logMessage) (panicked bool, er
 	return
 }
 
-// handleLogWriteError writes a human-readable error message to the fallback
-// writer. A read lock is used since we only need consistent access to fallbck.
+// Writes a specified string to the logger fallback.
+//
+// A read lock is used to prevent fallbcsk changes on write.
 func (l *logger) handleLogWriteError(errormsg string) {
 	l.sync.fbckMtx.RLock()
 	defer l.sync.fbckMtx.RUnlock()
@@ -198,10 +205,8 @@ func (l *logger) handleLogWriteError(errormsg string) {
 	}
 }
 
-// buildTextMessage constructs the textual representation for a message using
-// the provided outContext. The message is appended into outBuffer and the
-// same buffer is returned. The buffer is expected to be reset by the caller
-// before writing to the output.
+// Constructs and buffers the textual representation for a message using the provided
+// output context.
 func buildTextMessage(outBuffer *bytes.Buffer, msg *logMessage, context *outContext) *bytes.Buffer {
 	outBuffer.Reset()
 	if msg != nil {
@@ -215,9 +220,9 @@ func buildTextMessage(outBuffer *bytes.Buffer, msg *logMessage, context *outCont
 			// optional numeric level id (compact path for small max)
 			if context.showlvlid {
 				if _LVL_MAX_for_checks_only <= 10 {
-					outBuffer.Write([]byte{'[', '0' + byte(msg.annex), ']'})
+					outBuffer.Write([]byte{'[', '0' + byte(level), ']'})
 				} else {
-					outBuffer.Write([]byte("[" + strconv.FormatUint(uint64(msg.annex), 10) + "]"))
+					outBuffer.Write([]byte("[" + strconv.FormatUint(uint64(level), 10) + "]"))
 				}
 			}
 			// optional prefix map + delimiter
@@ -249,3 +254,5 @@ func buildTextMessage(outBuffer *bytes.Buffer, msg *logMessage, context *outCont
 	}
 	return outBuffer
 }
+
+/****************************** Client part ******************************/

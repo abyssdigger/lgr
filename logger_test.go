@@ -1,7 +1,9 @@
 package lgr
 
 import (
+	"bytes"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"runtime"
@@ -15,6 +17,15 @@ import (
 const testlogstr = "Test log АБВ こんにちは, 世界!`'\u00e9\"\\\x5A\254\n\a\b\t\f\r\v"
 const panicStr = "panic generated in writer"
 const errorStr = "error generated in writer"
+
+// Returns the outContext for a given output writer by pointer so it can be changed directly
+// outside logger functions (such changes can have thread-unsafe side effects in queue
+// proceedeng so use with care).
+//
+// Use for test purposes only.
+func (l *logger) getContext(output outType) *outContext {
+	return l.outputs[output]
+}
 
 type PanicWriter struct{}
 
@@ -185,7 +196,7 @@ func Test_logger_IsActive(t *testing.T) {
 	t.Run("one_from_255", func(t *testing.T) {
 		for i := range rng {
 			l.setState(lgrState(i))
-			assert.Equal(t, l.state == STATE_ACTIVE, l.IsActive())
+			assert.Equal(t, l.state == _STATE_ACTIVE, l.IsActive())
 		}
 	})
 }
@@ -214,7 +225,7 @@ func Test_logger_setState(t *testing.T) {
 			l.setState(lgrState(i))
 			res := lgrState(i)
 			if res >= _STATE_MAX_for_checks_only {
-				res = STATE_UNKNOWN
+				res = _STATE_UNKNOWN
 			}
 			assert.Equal(t, res, l.state)
 		}
@@ -226,7 +237,7 @@ func Test_logger_Start(t *testing.T) {
 		l := Init()
 		err := l.Start(0)
 		assert.Nil(t, err, "error on normal start")
-		assert.Equal(t, STATE_ACTIVE, l.state, "wrong state after normal start")
+		assert.Equal(t, _STATE_ACTIVE, l.state, "wrong state after normal start")
 		l.StopAndWait()
 	})
 	t.Run("double", func(t *testing.T) {
@@ -235,15 +246,15 @@ func Test_logger_Start(t *testing.T) {
 		assert.Nil(t, err, "error on first start")
 		err = l.Start(0)
 		assert.NotNil(t, err, "no error on double start")
-		assert.EqualError(t, err, ERROR_MESSAGE_LOGGER_STARTED, "wrong error on double start")
-		assert.Equal(t, STATE_ACTIVE, l.state, "wrong state after double start")
+		assert.EqualError(t, err, _ERROR_MESSAGE_LOGGER_STARTED, "wrong error on double start")
+		assert.Equal(t, _STATE_ACTIVE, l.state, "wrong state after double start")
 		l.StopAndWait()
 	})
 	t.Run("negative_buffsize", func(t *testing.T) {
 		l := Init()
 		err := l.Start(-10)
 		assert.Nil(t, err, "error with negative buffsize")
-		assert.Equal(t, cap(l.channel), DEFAULT_MSG_BUFF, "wrong channel capacity")
+		assert.Equal(t, cap(l.channel), _DEFAULT_MSG_BUFF, "wrong channel capacity")
 		l.StopAndWait()
 	})
 }
@@ -253,7 +264,7 @@ func Test_logger_Stop(t *testing.T) {
 		err := l.Start(0)
 		assert.Nil(t, err, "error on start")
 		l.Stop()
-		assert.Equal(t, STATE_STOPPING, l.state, "wrong state after stop")
+		assert.Equal(t, _STATE_STOPPING, l.state, "wrong state after stop")
 	})
 	t.Run("double", func(t *testing.T) {
 		l := Init()
@@ -265,7 +276,7 @@ func Test_logger_Stop(t *testing.T) {
 	t.Run("without_start", func(t *testing.T) {
 		l := Init()
 		l.Stop()
-		assert.Equal(t, STATE_STOPPED, l.state, "wrong state after stop without start")
+		assert.Equal(t, _STATE_STOPPED, l.state, "wrong state after stop without start")
 	})
 }
 
@@ -276,12 +287,12 @@ func Test_logger_Wait(t *testing.T) {
 		assert.Nil(t, err, "error on start")
 		l.Stop()
 		assert.NotPanics(t, func() { l.Wait() }, "Panic on wait after stop")
-		assert.Equal(t, STATE_STOPPED, l.state, "wrong state after wait")
+		assert.Equal(t, _STATE_STOPPED, l.state, "wrong state after wait")
 	})
 	t.Run("without_start", func(t *testing.T) {
 		l := Init()
 		assert.NotPanics(t, func() { l.Wait() }, "Panic on wait without start")
-		assert.Equal(t, STATE_STOPPED, l.state, "wrong state after wait without start")
+		assert.Equal(t, _STATE_STOPPED, l.state, "wrong state after wait without start")
 	})
 	t.Run("double_wait", func(t *testing.T) {
 		l := Init()
@@ -290,11 +301,11 @@ func Test_logger_Wait(t *testing.T) {
 		l.Stop()
 		assert.NotPanics(t, func() { l.Wait() }, "Panic on first wait")
 		assert.NotPanics(t, func() { l.Wait() }, "Panic on second wait")
-		assert.Equal(t, STATE_STOPPED, l.state, "wrong state after double wait")
+		assert.Equal(t, _STATE_STOPPED, l.state, "wrong state after double wait")
 	})
 	t.Run("wait_long_buff", func(t *testing.T) {
 		buffsize := 8192
-		l := InitWithParams(DEFAULT_LOG_LEVEL, nil)
+		l := InitWithParams(_DEFAULT_LOG_LEVEL, nil)
 		err := l.Start(buffsize)
 		assert.Nil(t, err, "error on start")
 		lc := l.NewClient("fake", LVL_UNMASKABLE)
@@ -313,12 +324,12 @@ func Test_logger_StopAndWait(t *testing.T) {
 		err := l.Start(0)
 		assert.Nil(t, err, "error on start")
 		assert.NotPanics(t, func() { l.StopAndWait() }, "Panic on StopAndWait")
-		assert.Equal(t, STATE_STOPPED, l.state, "wrong state after StopAndWait")
+		assert.Equal(t, _STATE_STOPPED, l.state, "wrong state after StopAndWait")
 	})
 	t.Run("without_start", func(t *testing.T) {
 		l := Init()
 		assert.NotPanics(t, func() { l.StopAndWait() }, "Panic on StopAndWait without start")
-		assert.Equal(t, STATE_STOPPED, l.state, "wrong state after StopAndWait without start")
+		assert.Equal(t, _STATE_STOPPED, l.state, "wrong state after StopAndWait without start")
 	})
 	t.Run("double_StopAndWait", func(t *testing.T) {
 		l := Init()
@@ -326,7 +337,7 @@ func Test_logger_StopAndWait(t *testing.T) {
 		assert.Nil(t, err, "error on start")
 		assert.NotPanics(t, func() { l.StopAndWait() }, "Panic on first StopAndWait")
 		assert.NotPanics(t, func() { l.StopAndWait() }, "Panic on second StopAndWait")
-		assert.Equal(t, STATE_STOPPED, l.state, "wrong state after double StopAndWait")
+		assert.Equal(t, _STATE_STOPPED, l.state, "wrong state after double StopAndWait")
 	})
 }
 
@@ -337,7 +348,7 @@ func TestInitWithParams(t *testing.T) {
 		out2 := os.Stdout
 		level := LVL_DEBUG
 		l := InitWithParams(level, fallbck, out1, out2)
-		assert.Equal(t, STATE_STOPPED, l.state, "wrong state after init")
+		assert.Equal(t, _STATE_STOPPED, l.state, "wrong state after init")
 		assert.Equal(t, level, l.level, "wrong level after init")
 		assert.Equal(t, 2, len(l.outputs), "wrong outputs count after init")
 		assert.Contains(t, l.outputs, out1, "missing output1 after init")
@@ -349,7 +360,7 @@ func TestInitWithParams(t *testing.T) {
 		out2 := io.Discard
 		level := _LVL_MAX_for_checks_only + 10
 		l := InitWithParams(level, nil, nil, out1, nil, out2)
-		assert.Equal(t, STATE_STOPPED, l.state, "wrong state after init")
+		assert.Equal(t, _STATE_STOPPED, l.state, "wrong state after init")
 		assert.Equal(t, LVL_UNKNOWN, l.level, "wrong level after init")
 		assert.Equal(t, 2, len(l.outputs), "wrong outputs count after init")
 		assert.Contains(t, l.outputs, out1, "missing output1 after init")
@@ -368,8 +379,8 @@ func TestInit(t *testing.T) {
 			l.Start(0)
 			l.StopAndWait()
 		})
-		assert.Equal(t, STATE_STOPPED, l.state, "wrong state")
-		assert.Equal(t, DEFAULT_LOG_LEVEL, l.level, "wrong log level")
+		assert.Equal(t, _STATE_STOPPED, l.state, "wrong state")
+		assert.Equal(t, _DEFAULT_LOG_LEVEL, l.level, "wrong log level")
 		assert.Equal(t, 1, len(l.outputs), "wrong outputs count")
 		assert.Contains(t, l.outputs, out1, "wrong output")
 		assert.Equal(t, os.Stderr, l.fallbck, "wrong fallback")
@@ -382,7 +393,7 @@ func TestInit(t *testing.T) {
 			l.StopAndWait()
 		})
 		assert.Empty(t, l.outputs, "outputs exist")
-		assert.Equal(t, DEFAULT_LOG_LEVEL, l.level, "wrong log level")
+		assert.Equal(t, _DEFAULT_LOG_LEVEL, l.level, "wrong log level")
 		assert.Equal(t, os.Stderr, l.fallbck, "wrong fallback")
 	})
 	t.Run("empty_output", func(t *testing.T) {
@@ -393,7 +404,7 @@ func TestInit(t *testing.T) {
 			l.StopAndWait()
 		})
 		assert.Empty(t, l.outputs, "outputs exist")
-		assert.Equal(t, DEFAULT_LOG_LEVEL, l.level, "wrong log level")
+		assert.Equal(t, _DEFAULT_LOG_LEVEL, l.level, "wrong log level")
 		assert.Equal(t, os.Stderr, l.fallbck, "wrong fallback")
 	})
 }
@@ -403,33 +414,33 @@ func TestInitAndStart(t *testing.T) {
 		var l *logger
 		out1 := os.Stdout
 		assert.NotPanics(t, func() {
-			l = InitAndStart(DEFAULT_MSG_BUFF, out1)
+			l = InitAndStart(_DEFAULT_MSG_BUFF, out1)
 		})
-		assert.Equal(t, DEFAULT_MSG_BUFF, cap(l.channel))
-		assert.Equal(t, STATE_ACTIVE, l.state, "wrong active state")
-		assert.Equal(t, DEFAULT_LOG_LEVEL, l.level, "wrong log level")
+		assert.Equal(t, _DEFAULT_MSG_BUFF, cap(l.channel))
+		assert.Equal(t, _STATE_ACTIVE, l.state, "wrong active state")
+		assert.Equal(t, _DEFAULT_LOG_LEVEL, l.level, "wrong log level")
 		assert.Equal(t, 1, len(l.outputs), "wrong outputs count")
 		assert.Contains(t, l.outputs, out1, "wrong output")
 		assert.Equal(t, os.Stderr, l.fallbck, "wrong fallback")
 		assert.NotPanics(t, func() {
 			l.StopAndWait()
 		})
-		assert.Equal(t, STATE_STOPPED, l.state, "wrong stopped state")
+		assert.Equal(t, _STATE_STOPPED, l.state, "wrong stopped state")
 	})
 	t.Run("min_params", func(t *testing.T) {
 		var l *logger
 		assert.NotPanics(t, func() {
 			l = InitAndStart(-1)
 		})
-		assert.Equal(t, DEFAULT_MSG_BUFF, cap(l.channel))
-		assert.Equal(t, STATE_ACTIVE, l.state, "wrong active state")
-		assert.Equal(t, DEFAULT_LOG_LEVEL, l.level, "wrong log level")
+		assert.Equal(t, _DEFAULT_MSG_BUFF, cap(l.channel))
+		assert.Equal(t, _STATE_ACTIVE, l.state, "wrong active state")
+		assert.Equal(t, _DEFAULT_LOG_LEVEL, l.level, "wrong log level")
 		assert.Empty(t, l.outputs, "outputs exist")
 		assert.Equal(t, os.Stderr, l.fallbck, "wrong fallback")
 		assert.NotPanics(t, func() {
 			l.StopAndWait()
 		})
-		assert.Equal(t, STATE_STOPPED, l.state, "wrong stopped state")
+		assert.Equal(t, _STATE_STOPPED, l.state, "wrong stopped state")
 	})
 }
 
@@ -510,7 +521,7 @@ func Test_logger_SetTimeFormat(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := l.SetOutputTimeFormat(out1, tt.timefmt)
+			got := l.SetOutputTimeFormat(out1, tt.timefmt, "")
 			assert.Equal(t, l, got, "wrong return (must be self)")
 			assert.Equal(t, tt.timefmt, l.outputs[out1].timefmt, "wrong time format assignment")
 		})
@@ -569,6 +580,7 @@ func Test_logger_NewClient(t *testing.T) {
 func Test_logger_pushMessage(t *testing.T) {
 	ferr := &FakeWriter{}
 	out1 := &FakeWriter{}
+	textmsg := &logMessage{msgtype: _MSG_LOG_TEXT, msgdata: testbytes, annex: basetype(LVL_UNMASKABLE)}
 	tests := []struct {
 		name    string // description of this test case
 		msg     *logMessage
@@ -577,7 +589,11 @@ func Test_logger_pushMessage(t *testing.T) {
 		state   lgrState
 		wantErr string
 	}{
-		// TODO: Add test cases.
+		{"msg_txt", textmsg, true, false, _STATE_ACTIVE, ""},
+		{"msg_nil", nil, true, false, _STATE_ACTIVE, _ERROR_MESSAGE_LOG_MSG_IS_NIL},
+		{"not-started", textmsg, false, false, _STATE_UNKNOWN, _ERROR_MESSAGE_LOGGER_INACTIVE},
+		{"channel_nil", textmsg, true, true, _STATE_ACTIVE, _ERROR_MESSAGE_CHANNEL_IS_NIL},
+		{"msg_cmd", &logMessage{msgtype: _MSG_COMMAND, annex: basetype(_CMD_DUMMY), msgdata: testbytes}, true, false, _STATE_ACTIVE, ""},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -593,15 +609,21 @@ func Test_logger_pushMessage(t *testing.T) {
 			t0 := time.Now()
 			tm, gotErr := l.pushMessage(tt.msg)
 			t1 := time.Now()
-			if tt.started {
+			if tt.started && !tt.nilchan {
 				l.StopAndWait()
 			}
-			assert.WithinRange(t, tm, t0, t1)
-			res := gotErr.Error()
+			res := ""
+			if gotErr != nil {
+				res = gotErr.Error()
+			}
 			if tt.wantErr == "" {
-				assert.NoError(t, gotErr, "unexpected error: '"+res+"'")
+				assert.WithinRange(t, tm, t0, t1)
+				assert.NoError(t, gotErr, "unexpected error")
+				assert.Contains(t, out1.String(), testlogstr, "wrong output")
+				assert.Empty(t, ferr, "fallback is not empty: "+ferr.String())
 			} else {
 				assert.Contains(t, res, tt.wantErr, "wrong error text")
+				assert.Zero(t, tm, "non-zero time on error")
 			}
 		})
 	}
@@ -614,7 +636,7 @@ func Test_logger_runClientCommand(t *testing.T) {
 	out2 := &FakeWriter{}
 	l1 := Init(out1)
 	l1.SetFallback(ferr1)
-	l1.state = STATE_ACTIVE
+	l1.state = _STATE_ACTIVE
 	lc1 := l1.NewClient("lc1", LVL_UNKNOWN)
 	l2 := Init(out2)
 	l2.SetFallback(ferr2)
@@ -630,10 +652,10 @@ func Test_logger_runClientCommand(t *testing.T) {
 		wantErr string
 	}
 	tests := []testType{
-		{"nil_client", nil, CMD_CLIENT_DUMMY, false, ERROR_MESSAGE_CLIENT_IS_NIL},
-		{"alien_client", lc2, CMD_CLIENT_DUMMY, false, ERROR_MESSAGE_CLIENT_IS_ALIEN},
-		{"orphan_client", lcnil, CMD_CLIENT_DUMMY, false, ERROR_MESSAGE_CLIENT_IS_ALIEN},
-		{"wrong_command", lc1, _CMD_MAX_for_checks_only + 10, false, ERROR_MESSAGE_NON_CLIENT_CMD},
+		{"nil_client", nil, _CMD_CLIENT_DUMMY, false, _ERROR_MESSAGE_CLIENT_IS_NIL},
+		{"alien_client", lc2, _CMD_CLIENT_DUMMY, false, _ERROR_MESSAGE_CLIENT_IS_ALIEN},
+		{"orphan_client", lcnil, _CMD_CLIENT_DUMMY, false, _ERROR_MESSAGE_CLIENT_IS_ALIEN},
+		{"wrong_command", lc1, _CMD_MAX_for_checks_only + 10, false, _ERROR_MESSAGE_NON_CLIENT_CMD},
 	}
 	for i := _CMD_CLIENT_commands_min; i <= _CMD_CLIENT_commands_max; i++ {
 		tests = append(tests, testType{"cmd_" + strconv.Itoa(int(i)), lc1, i, true, ""})
@@ -697,9 +719,9 @@ func Test_logger_SetClientMinLevel(t *testing.T) {
 	}{
 		{"normal", lc1, LVL_UNMASKABLE, ""},
 		{"unknown_level", lc1, _LVL_MAX_for_checks_only + 10, ""},
-		{"nil_client", nil, LVL_UNMASKABLE, ERROR_MESSAGE_CLIENT_IS_NIL},
-		{"alien_client", lc2, LVL_UNMASKABLE, ERROR_MESSAGE_CLIENT_IS_ALIEN},
-		{"orphan_client", lcnil, LVL_UNMASKABLE, ERROR_MESSAGE_CLIENT_IS_ALIEN},
+		{"nil_client", nil, LVL_UNMASKABLE, _ERROR_MESSAGE_CLIENT_IS_NIL},
+		{"alien_client", lc2, LVL_UNMASKABLE, _ERROR_MESSAGE_CLIENT_IS_ALIEN},
+		{"orphan_client", lcnil, LVL_UNMASKABLE, _ERROR_MESSAGE_CLIENT_IS_ALIEN},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -722,6 +744,397 @@ func Test_logger_SetClientMinLevel(t *testing.T) {
 				assert.NotNil(t, gotErr, "no error")
 				assert.ErrorContains(t, gotErr, tt.wantErr, "wrong error")
 			}
+			assert.Empty(t, out1.String(), "output1 is not empty")
+			assert.Empty(t, out2.String(), "output2 is not empty")
+			assert.Empty(t, ferr1.String(), "fallback1 is not empty")
+			assert.Empty(t, ferr2.String(), "fallback2 is not empty")
+		})
+	}
+}
+
+func Test_logClient_JustVisualTest(t *testing.T) {
+	var logger = InitWithParams(LVL_UNKNOWN, os.Stderr, nil) //...Default()
+	var alter1 = *os.Stdout
+	var alter2 = *os.Stdout
+	res1 := &alter1
+	res2 := &alter2
+	outs := [...]io.Writer{nil, res1, os.Stdout, res2, os.Stderr}
+	for i := 1; i <= len(outs); i++ {
+		t.Run("Stage #"+strconv.Itoa(i), func(t *testing.T) {
+			logger.Start(32)
+			logger.AddOutputs(outs[i-1])
+			logger.SetOutputLevelPrefix(os.Stderr, LevelShortNames, "\t")
+			logger.SetOutputLevelPrefix(res1, LevelFullNames, " --> ")
+			logger.SetOutputLevelColor(res1, LevelColorOnBlackMap)
+			logger.SetOutputLevelPrefix(res2, LevelShortNames, "|")
+			logger.SetOutputLevelColor(os.Stdout, LevelColorOnBlackMap)
+			logger.SetOutputTimeFormat(res1, "2006-01-02 15:04:05", " ")
+			logger.SetOutputTimeFormat(os.Stderr, "2006-01-02 15:04:05", " ")
+			logger.ShowOutputLevelCode(os.Stderr)
+			lclient1 := logger.NewClient("<Тестовое имя Name>", LVL_UNMASKABLE+1)
+			lclient2 := logger.NewClient("^china 你好 прочая^", LVL_UNMASKABLE+1)
+			for j := range LogLevel(LVL_UNMASKABLE + 1 + 1) {
+				_, err := lclient1.Log_with_err(j, "LOG! #"+fmt.Sprint(j+1))
+				if err != nil {
+					fmt.Println("Error1:", err)
+				} else {
+					_, err := lclient2.Log_with_err(j, "ЛОГ? №"+fmt.Sprint(j+1))
+					if err != nil {
+						fmt.Println("Error1:", err)
+						assert.NoError(t, err, "unexpected error '"+err.Error()+"'")
+					}
+				}
+			}
+			fmt.Println("Stopping logger...")
+			logger.StopAndWait()
+			logger.ClearOutputs()
+			fmt.Println("*** FINITA LA COMEDIA #", i, "***")
+			time.Sleep(100 * time.Millisecond)
+		})
+	}
+}
+
+func Test_logClient_Log_with_err(t *testing.T) {
+	var msg *logMessage
+	var err error
+	var l *logger
+	var lc *logClient
+	prep := func(f func(), loglevel LogLevel, msglevel LogLevel, ferr *FakeWriter, outs ...outType) (*logMessage, error) {
+		l = Init()
+		l.SetFallback(outType(ferr)).ClearOutputs().AddOutputs(outs...)
+		lc = l.NewClient("[Testing client name]", LVL_UNKNOWN)
+		if f == nil {
+			l.Start(0)
+		} else {
+			f()
+		}
+		l.level = loglevel
+		t, e := lc.Log_with_err(msglevel, testlogstr)
+		if f == nil {
+			l.StopAndWait()
+		}
+		if e == nil {
+			msg := makeTextMessage(lc, loglevel, []byte(testlogstr))
+			msg.pushed = t
+			return msg, nil
+		}
+		return nil, e
+	}
+	t.Run("panic_on_closed_channel", func(t *testing.T) {
+		ferr := &FakeWriter{}
+		out1 := &FakeWriter{}
+		assert.NotPanics(t, func() {
+			msg, err = prep(func() {
+				l.Start(0)
+				close(l.channel)
+			}, LVL_WARN, LVL_WARN, ferr, out1)
+		}, "Panic on write")
+		l.channel = make(chan logMessage)
+		l.StopAndWait()
+		assert.Error(t, err, "no error on log to stopped logger")
+		assert.ErrorContains(t, err, "panic", "Wrong error on log to stopped logger")
+		assert.Empty(t, ferr.buffer, "data written to fallback")
+		assert.Empty(t, out1.buffer, "data written to output")
+	})
+	t.Run("not_active", func(t *testing.T) {
+		ferr := &FakeWriter{}
+		out1 := &FakeWriter{}
+		assert.NotPanics(t, func() {
+			msg, err = prep(func() {}, LVL_WARN, LVL_WARN, ferr, out1)
+		}, "Panic on write")
+		l.StopAndWait()
+		assert.ErrorContains(t, err, "not active", "Wrong error on log to stopped logger")
+		assert.Empty(t, ferr.buffer, "data written to fallback")
+		assert.Empty(t, out1.buffer, "data written to output")
+	})
+	t.Run("unrecovered_panic", func(t *testing.T) {
+		ferr := &FakeWriter{}
+		out1 := &FakeWriter{}
+		out2 := &FakeWriter{}
+		assert.Panics(t, func() {
+			err = nil
+			msg, err = prep(nil, _LVL_MAX_for_checks_only, LVL_DEBUG, ferr, out1, out2)
+		}, "No panic on unmasked panic")
+		assert.NoError(t, err, "unexpected error")
+		assert.Nil(t, msg, "message not nil")
+		assert.Empty(t, out1.buffer, "data written to output 1")
+		assert.Empty(t, out2.buffer, "data written to output 2")
+		assert.Empty(t, ferr.buffer, "data written to fallback")
+	})
+	t.Run("error_on_nil_channel", func(t *testing.T) {
+		ferr := &FakeWriter{}
+		out1 := &FakeWriter{}
+		assert.NotPanics(t, func() {
+			msg, err = prep(func() {
+				l.state = _STATE_ACTIVE
+			}, LVL_INFO, LVL_WARN, ferr, out1)
+		}, "Panic on write")
+		assert.Error(t, err, "no error on log to stopped logger")
+		assert.Nil(t, msg, "message not nil")
+		assert.ErrorContains(t, err, "channel is nil", "Wrong error on log to stopped logger")
+		assert.Empty(t, ferr.buffer, "data written to fallback")
+		assert.Empty(t, out1.buffer, "data written to output")
+	})
+	t.Run("error_on_nil_logger", func(t *testing.T) {
+		ferr := &FakeWriter{}
+		out1 := &FakeWriter{}
+		assert.NotPanics(t, func() {
+			msg, err = prep(func() {
+				l.Start(0)
+				lc.logger = nil
+			}, LVL_INFO, LVL_WARN, ferr, out1)
+		}, "Panic on write")
+		assert.Error(t, err, "no error on log to stopped logger")
+		assert.Nil(t, msg, "message not nil")
+		assert.ErrorContains(t, err, "logger is nil", "Wrong error on log to stopped logger")
+		assert.Empty(t, ferr.buffer, "data written to fallback")
+		assert.Empty(t, out1.buffer, "data written to output")
+	})
+	t.Run("nil_output", func(t *testing.T) {
+		ferr := &FakeWriter{}
+		assert.NotPanics(t, func() {
+			msg, err = prep(nil, LVL_INFO, LVL_WARN, ferr)
+			assert.NoError(t, err, "unexpected error")
+		}, "Panic on write")
+		assert.Empty(t, ferr.buffer, "data written to fallback")
+	})
+	t.Run("no_outputs", func(t *testing.T) {
+		ferr := &FakeWriter{}
+		msg, err = prep(nil, LVL_INFO, LVL_WARN, ferr, []outType{}...)
+		assert.Empty(t, ferr.buffer, "data written to fallback on write to nil outputs")
+	})
+	t.Run("2_outputs", func(t *testing.T) {
+		ferr := &FakeWriter{}
+		out1 := &FakeWriter{}
+		out2 := &FakeWriter{}
+		outBuffer := bytes.NewBuffer(make([]byte, _DEFAULT_OUT_BUFF))
+		assert.NotPanics(t, func() {
+			msg, err = prep(nil, LVL_INFO, LVL_WARN, ferr, out1, out2)
+			assert.NoError(t, err, "unexpected error")
+		}, "Panic on write")
+		assert.Equal(t, buildTextMessage(outBuffer, msg, l.getContext(out1)).Bytes(), out1.buffer)
+		assert.Equal(t, buildTextMessage(outBuffer, msg, l.getContext(out2)).Bytes(), out2.buffer)
+		assert.Empty(t, ferr.buffer, "data written to fallback")
+	})
+	t.Run("1_error_1_panic_outs", func(t *testing.T) {
+		ferr := &FakeWriter{}
+		out1 := &FakeWriter{}
+		out2 := &FakeWriter{}
+		outBuffer := bytes.NewBuffer(make([]byte, _DEFAULT_OUT_BUFF))
+		assert.NotPanics(t, func() {
+			err = nil
+			msg, err = prep(nil, LVL_INFO, LVL_WARN, ferr, out1, &ErrorWriter{}, out2, &PanicWriter{})
+			assert.NoError(t, err, "unexpected error")
+		}, "Panic on write")
+		assert.Equal(t, buildTextMessage(outBuffer, msg, l.getContext(out1)).Bytes(), out1.buffer)
+		assert.Equal(t, buildTextMessage(outBuffer, msg, l.getContext(out2)).Bytes(), out2.buffer)
+		assert.Contains(t, ferr.String(), panicStr+"`\n")
+		assert.Contains(t, ferr.String(), errorStr+"\n")
+	})
+	t.Run("level_masked", func(t *testing.T) {
+		ferr := &FakeWriter{}
+		out1 := &FakeWriter{}
+		assert.NotPanics(t, func() {
+			msg, err = prep(nil, LVL_INFO, LVL_DEBUG, ferr, out1)
+			assert.NoError(t, err, "unexpected error")
+		}, "Panic on write")
+		assert.Empty(t, ferr.buffer, "data written to fallback")
+		assert.Empty(t, out1.buffer, "data written to output on log with level lower than set")
+	})
+	t.Run("level_logged", func(t *testing.T) {
+		ferr := &FakeWriter{}
+		out1 := &FakeWriter{}
+		outBuffer := bytes.NewBuffer(make([]byte, _DEFAULT_OUT_BUFF))
+		assert.NotPanics(t, func() {
+			msg, err = prep(nil, LVL_WARN, LVL_WARN, ferr, out1)
+			assert.NoError(t, err, "unexpected error")
+		}, "Panic on write")
+		assert.Empty(t, ferr.buffer, "data written to fallback")
+		assert.NotEmpty(t, out1.buffer, "no data written to output on log with level higher than set")
+		assert.Equal(t, buildTextMessage(outBuffer, msg, l.getContext(out1)).Bytes(), out1.buffer)
+	})
+}
+
+func Test_logClient_Log(t *testing.T) {
+	var l *logger
+	var lc *logClient
+	prep := func(f func(), loglevel LogLevel, msglevel LogLevel, ferr outType, outs ...outType) {
+		l = Init()
+		l.SetFallback(ferr).ClearOutputs().AddOutputs(outs...)
+		lc = l.NewClient("[Testing client name]", LVL_UNKNOWN)
+		//lc.minLevel = _LVL_MAX_for_checks_only
+		if f == nil {
+			l.Start(0)
+		} else {
+			f()
+		}
+		l.level = loglevel
+		lc.Log(msglevel, testlogstr)
+		if f == nil {
+			l.StopAndWait()
+		}
+	}
+	t.Run("not_active", func(t *testing.T) {
+		ferr := &FakeWriter{}
+		out1 := &FakeWriter{}
+		assert.NotPanics(t, func() {
+			prep(func() {}, LVL_WARN, LVL_WARN, ferr, out1)
+		}, "Panic on write")
+		l.StopAndWait()
+		assert.NotEmpty(t, ferr.buffer, "err not written to fallback")
+		assert.Contains(t, ferr.String(), "not active")
+		assert.Empty(t, out1.buffer, "data written to output")
+	})
+}
+func Test_logClient_LogLevels(t *testing.T) {
+	l := Init()
+	out1 := &FakeWriter{}
+	outBuffer := bytes.NewBuffer(make([]byte, _DEFAULT_OUT_BUFF))
+	l.AddOutputs(out1)
+	l.SetOutputLevelColor(out1, LevelColorOnBlackMap)
+	l.SetOutputLevelPrefix(out1, LevelFullNames, " !delimiter! ")
+	l.SetMinLevel(LVL_UNKNOWN)
+	lc := l.NewClient("", LVL_UNKNOWN)
+	l.Start(0)
+	tests := []struct {
+		level LogLevel
+		fn    func(string) time.Time
+	}{
+		{LVL_TRACE, lc.LogTrace},
+		{LVL_DEBUG, lc.LogDebug},
+		{LVL_INFO, lc.LogInfo},
+		{LVL_WARN, lc.LogWarn},
+		{LVL_ERROR, lc.LogError},
+	}
+	for _, tt := range tests {
+		t.Run(fmt.Sprintf("level_%d", tt.level), func(t *testing.T) {
+			out1.Clear()
+			l.Start(0)
+			msg := makeTextMessage(lc, tt.level, []byte(testlogstr))
+			msg.pushed = tt.fn(testlogstr)
+			l.StopAndWait()
+			assert.Equal(t, buildTextMessage(outBuffer, msg, l.outputs[out1]).Bytes(), out1.buffer, "wrong output")
+		})
+	}
+	t.Run("error_write", func(t *testing.T) {
+		out1.Clear()
+		outBuffer := bytes.NewBuffer(make([]byte, _DEFAULT_OUT_BUFF))
+		l.Start(0)
+		msg := makeTextMessage(lc, LVL_ERROR, []byte(testlogstr))
+		msg.pushed = lc.LogErr(errors.New(testlogstr))
+		l.StopAndWait()
+		assert.Equal(t, buildTextMessage(outBuffer, msg, l.outputs[out1]).Bytes(), out1.buffer, "wrong output")
+	})
+}
+func Test_logger_SetClientEnabled(t *testing.T) {
+	t.Run("nil_client", func(t *testing.T) {
+		l := Init()
+		err := l.SetClientEnabled(nil, false)
+		if assert.Error(t, err) {
+			assert.ErrorContains(t, err, _ERROR_MESSAGE_CLIENT_IS_NIL)
+		}
+	})
+
+	t.Run("alien_client", func(t *testing.T) {
+		l1 := Init()
+		l2 := Init()
+		lc := l2.NewClient("alien", LVL_UNKNOWN)
+		// initial state must be true
+		assert.True(t, lc.enabled)
+		err := l1.SetClientEnabled(lc, false)
+		if assert.Error(t, err) {
+			assert.ErrorContains(t, err, _ERROR_MESSAGE_CLIENT_IS_ALIEN)
+		}
+		// ensure alien client's enabled flag was not changed by other logger
+		assert.True(t, lc.enabled)
+	})
+
+	t.Run("disable_enable_toggle", func(t *testing.T) {
+		l := Init()
+		lc := l.NewClient("local", LVL_UNKNOWN)
+		// initially enabled
+		assert.True(t, lc.enabled)
+
+		// disable
+		err := l.SetClientEnabled(lc, false)
+		assert.NoError(t, err)
+		assert.False(t, lc.enabled)
+
+		// enable again
+		err = l.SetClientEnabled(lc, true)
+		assert.NoError(t, err)
+		assert.True(t, lc.enabled)
+
+		// idempotent calls
+		err = l.SetClientEnabled(lc, true)
+		assert.NoError(t, err)
+		assert.True(t, lc.enabled)
+	})
+}
+func Test_logger_SetClientName(t *testing.T) {
+	ferr1 := &FakeWriter{}
+	ferr2 := &FakeWriter{}
+	out1 := &FakeWriter{}
+	out2 := &FakeWriter{}
+	l1 := Init(out1)
+	l1.SetFallback(ferr1)
+	l1.state = _STATE_ACTIVE
+	lc1 := l1.NewClient("lc1", LVL_UNKNOWN)
+	l2 := Init(out2)
+	l2.SetFallback(ferr2)
+	lc2 := l2.NewClient("lc2", LVL_UNMASKABLE)
+	lcnil := l2.NewClient("lc2", LVL_UNMASKABLE)
+	lcnil.logger = nil
+
+	type testType struct {
+		name    string
+		lc      *logClient
+		wantMsg bool
+		wantErr string
+	}
+	tests := []testType{
+		{"nil_client", nil, false, _ERROR_MESSAGE_CLIENT_IS_NIL},
+		{"alien_client", lc2, false, _ERROR_MESSAGE_CLIENT_IS_ALIEN},
+		{"orphan_client", lcnil, false, _ERROR_MESSAGE_CLIENT_IS_ALIEN},
+		{"normal", lc1, true, ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ferr1.Clear()
+			ferr2.Clear()
+			out1.Clear()
+			out2.Clear()
+			l2.Start(0)
+			l1.channel = make(chan logMessage, 1)
+			defer close(l1.channel)
+			t0 := time.Now()
+			got, gotErr := l1.SetClientName(tt.lc, testlogstr)
+			t1 := time.Now()
+			select {
+			case msg := <-l1.channel:
+				assert.True(t, tt.wantMsg, "forbidden sending to channel")
+				assert.ElementsMatch(t, []byte(testlogstr), msg.msgdata, "command data changed after channel")
+				if tt.wantErr == "" {
+					assert.NoError(t, gotErr, "unexpected error")
+					assert.WithinRange(t, got, t0, t1, "wrong timestamp")
+				} else {
+					assert.Zero(t, got, "non-zero time returned on error")
+					assert.NotNil(t, gotErr, "no error")
+					assert.ErrorContains(t, gotErr, tt.wantErr, "wrong error")
+				}
+			default:
+				assert.False(t, tt.wantMsg, "message is not sent to channel")
+				if tt.wantErr == "" {
+					// expected a message but none was sent
+					assert.Fail(t, "expected message in channel but none received")
+				} else {
+					// error cases: ensure error returned
+					if assert.Error(t, gotErr) {
+						assert.ErrorContains(t, gotErr, tt.wantErr)
+					}
+				}
+			}
+			l2.StopAndWait()
 			assert.Empty(t, out1.String(), "output1 is not empty")
 			assert.Empty(t, out2.String(), "output2 is not empty")
 			assert.Empty(t, ferr1.String(), "fallback1 is not empty")
