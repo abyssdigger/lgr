@@ -35,11 +35,12 @@ logger.SetMinLevel(LVL_UNKNOWN) // All levels are allowed per logger
 
 ```go
 // Line by line:
-logger.SetOutputLevelPrefix(os.Stdout, lgr.LevelShortNames, ": ")
-logger.SetOutputLevelColor(os.Stdout, lgr.LevelColorOnBlackMap)
-logger.SetOutputTimeFormat(file, "2006-01-02 15:04:05", " ")
-// Single line:
-logger.SetOutputLevelPrefix(file, lgr.LevelFullNames, ": ").ShowOutputLevelCode(file)
+logger.SetOutputLevelPrefix(os.Stdout, lgr.LevelShortNames, ": ") // Short level names
+logger.SetOutputLevelColor(os.Stdout, lgr.LevelColorOnBlackMap)   // ANSI term colors
+logger.SetOutputTimeFormat(file, "2006-01-02 15:04:05", " ")      // Timestamp
+// Every setter returns logger, so can be called in chains -
+// here level numeric codes and full level names are set in one line:
+logger.ShowOutputLevelCode(file).SetOutputLevelPrefix(file, lgr.LevelFullNames, "|")
 ```
 
 ### Creating a Client
