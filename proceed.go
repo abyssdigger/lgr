@@ -24,7 +24,7 @@ remains of the original delusion.
 // Helper to write a message to the fallback writer as a single-line.
 //
 // Used to report internal errors encountered in the background goroutine.
-func (l *logger) fbckWriteln(s string) {
+func (l *Logger) fbckWriteln(s string) {
 	l.fallbck.Write([]byte(s + "\n"))
 }
 
@@ -38,7 +38,7 @@ func msgDescStr(m *logMessage) string {
 // Sets the logger normalized state.
 //
 // The operation is protected by mutex for thread safety.
-func (l *logger) setState(newstate lgrState) {
+func (l *Logger) setState(newstate lgrState) {
 	l.sync.statMtx.Lock()
 	defer l.sync.statMtx.Unlock()
 	l.state = normState(newstate)
@@ -51,7 +51,7 @@ func (l *logger) setState(newstate lgrState) {
 // The function recovers panics to ensure the background goroutine doesn't die silently;
 // recover triggers a fallback write and ensures logger is moved to stopped state
 // before returning.
-func (l *logger) procced() {
+func (l *Logger) procced() {
 	l.msgbuf = bytes.NewBuffer(make([]byte, DEFAULT_OUT_BUFF))
 	defer func() {
 		if r := recover(); r != nil {
@@ -77,7 +77,7 @@ func (l *logger) procced() {
 //
 // Unknown message types produce errors, special "forbidden" message type produces
 // panic (used only for testing).
-func (l *logger) proceedMsg(msg *logMessage) (err error) {
+func (l *Logger) proceedMsg(msg *logMessage) (err error) {
 	l.sync.procMtx.RLock()
 	defer func() {
 		l.sync.procMtx.RUnlock()
@@ -110,7 +110,7 @@ const _COMMAND_PING_MESSAGE = "<ping>"
 //
 // Any errors or invalid payloads are reported to the
 // fallback writer via handleLogWriteError and also returned as an error.
-func (l *logger) proceedCmd(msg *logMessage) (err error) {
+func (l *Logger) proceedCmd(msg *logMessage) (err error) {
 	l.sync.clntMtx.RLock()
 	defer l.sync.clntMtx.RUnlock()
 	errstr := ""
@@ -148,7 +148,7 @@ func (l *logger) proceedCmd(msg *logMessage) (err error) {
 //
 // Write errors are passed to the fallback writer. The output is disabled on write panic
 // to avoid further repeated panics.
-func (l *logger) logTextToOutputs(msg *logMessage) {
+func (l *Logger) logTextToOutputs(msg *logMessage) {
 	for output, settings := range l.outputs {
 		if output != nil && settings != nil && settings.enabled {
 			panicked, err := l.logTextData(output, msg)
@@ -167,7 +167,7 @@ func (l *logger) logTextToOutputs(msg *logMessage) {
 //
 // Return values: panicked (true if a panic occurred while writing) and err for any
 // write-related error. The deferred recover converts the panic into an error.
-func (l *logger) logTextData(output OutType, msg *logMessage) (panicked bool, err error) {
+func (l *Logger) logTextData(output OutType, msg *logMessage) (panicked bool, err error) {
 	// only returns of named result values can be changed by defer:
 	// https://bytegoblin.io/blog/golang-magic-modify-return-value-using-deferred-function
 	panicked = false
@@ -196,7 +196,7 @@ func (l *logger) logTextData(output OutType, msg *logMessage) (panicked bool, er
 // Writes a specified string to the logger fallback.
 //
 // A read lock is used to prevent fallbcsk changes on write.
-func (l *logger) handleLogWriteError(errormsg string) {
+func (l *Logger) handleLogWriteError(errormsg string) {
 	l.sync.fbckMtx.RLock()
 	defer l.sync.fbckMtx.RUnlock()
 	if l.fallbck != nil {

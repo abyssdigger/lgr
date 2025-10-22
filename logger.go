@@ -42,7 +42,7 @@ const (
 //	    defer logger.StopAndWait()
 //	    ...
 //	}
-func InitAndStart(buffsize int, outputs ...OutType) (l *logger) {
+func InitAndStart(buffsize int, outputs ...OutType) (l *Logger) {
 	l = Init(outputs...)
 	l.Start(buffsize)
 	return
@@ -53,7 +53,7 @@ func InitAndStart(buffsize int, outputs ...OutType) (l *logger) {
 //
 // The returned logger is in stopped state and must be started by Start() to proceed
 // log messages.
-func Init(outputs ...OutType) *logger {
+func Init(outputs ...OutType) *Logger {
 	return InitWithParams(DEFAULT_LOG_LEVEL, os.Stderr, outputs...)
 }
 
@@ -61,8 +61,8 @@ func Init(outputs ...OutType) *logger {
 //
 // The returned logger is in stopped state and must be started by Start() to proceed
 // log messages.
-func InitWithParams(level LogLevel, fallback OutType, outputs ...OutType) *logger {
-	l := new(logger)
+func InitWithParams(level LogLevel, fallback OutType, outputs ...OutType) *Logger {
+	l := new(Logger)
 	l.state = _STATE_STOPPED
 	l.outputs = outList{}
 	l.SetMinLevel(level)
@@ -77,7 +77,7 @@ func InitWithParams(level LogLevel, fallback OutType, outputs ...OutType) *logge
 //
 // The started goroutine will run procced() and is tracked by the internal
 // wait group so callers can Wait() for graceful shutdown.
-func (l *logger) Start(buffsize int) error {
+func (l *Logger) Start(buffsize int) error {
 	l.sync.statMtx.Lock()
 	defer l.sync.statMtx.Unlock()
 	if l.IsActive() {
@@ -98,7 +98,7 @@ func (l *logger) Start(buffsize int) error {
 //
 // Wait() should be called before program exits to prevent the loss of last queued
 // messages.
-func (l *logger) Stop() {
+func (l *Logger) Stop() {
 	l.sync.statMtx.Lock()
 	defer l.sync.statMtx.Unlock()
 	if l.IsActive() {
@@ -108,7 +108,7 @@ func (l *logger) Stop() {
 }
 
 // Wait blocks until the background queue goroutine has finished.
-func (l *logger) Wait() {
+func (l *Logger) Wait() {
 	l.sync.waitEnd.Wait()
 }
 
@@ -121,7 +121,7 @@ func (l *logger) Wait() {
 //	    defer logger.StopAndWait()
 //	    ...
 //	}
-func (l *logger) StopAndWait() {
+func (l *Logger) StopAndWait() {
 	l.Stop()
 	l.Wait()
 }
@@ -130,7 +130,7 @@ func (l *logger) StopAndWait() {
 // be ignored.
 //
 // The operation is protected by mutex for thread safety.
-func (l *logger) SetMinLevel(minlevel LogLevel) *logger {
+func (l *Logger) SetMinLevel(minlevel LogLevel) *Logger {
 	l.sync.chngMtx.Lock()
 	defer l.sync.chngMtx.Unlock()
 	l.level = normLevel(minlevel)
@@ -141,7 +141,7 @@ func (l *logger) SetMinLevel(minlevel LogLevel) *logger {
 // instead of nil to silently drop fallback messages.
 //
 // The operation is protected by mutex for thread safety.
-func (l *logger) SetFallback(f OutType) *logger {
+func (l *Logger) SetFallback(f OutType) *Logger {
 	l.sync.fbckMtx.Lock()
 	defer l.sync.fbckMtx.Unlock()
 	if f != nil {
@@ -153,7 +153,7 @@ func (l *logger) SetFallback(f OutType) *logger {
 }
 
 // True if the logger is in active state (i.e. ready to proceed log messages).
-func (l *logger) IsActive() bool {
+func (l *Logger) IsActive() bool {
 	return l.state == _STATE_ACTIVE
 }
 
@@ -164,7 +164,7 @@ func (l *logger) IsActive() bool {
 //
 // Changes will be applied immediately (any previously queued messages
 // will be directed to the updated set of outputs).
-func (l *logger) AddOutputs(outputs ...OutType) *logger {
+func (l *Logger) AddOutputs(outputs ...OutType) *Logger {
 	l.operateOutputs(outputs, func(m *outList, k OutType) {
 		(*m)[k] = &OutContext{
 			enabled:   true,
@@ -181,7 +181,7 @@ func (l *logger) AddOutputs(outputs ...OutType) *logger {
 //
 // Changes will be applied immediately (any previously queued messages
 // will be directed to the updated set of outputs).
-func (l *logger) RemoveOutputs(outputs ...OutType) *logger {
+func (l *Logger) RemoveOutputs(outputs ...OutType) *Logger {
 	l.operateOutputs(outputs, func(m *outList, k OutType) { delete(*m, k) })
 	return l
 }
@@ -192,7 +192,7 @@ func (l *logger) RemoveOutputs(outputs ...OutType) *logger {
 //
 // Changes will be applied immediately (any previously queued message
 // will be discarded if no new outputs are added before proceeding).
-func (l *logger) ClearOutputs() *logger {
+func (l *Logger) ClearOutputs() *Logger {
 	//The current implementation removes the keys extracted from the map
 	// (helper usage for develop/testing purposes).
 	l.RemoveOutputs(slices.Collect(maps.Keys(l.outputs))...)
@@ -202,7 +202,7 @@ func (l *logger) ClearOutputs() *logger {
 // Helper that applies the operation for each non-nil output from the provided slice.
 //
 // The operation is performed with the outputs mutex held to ensure thread-safety.
-func (l *logger) operateOutputs(slice []OutType, operation func(m *outList, k OutType)) {
+func (l *Logger) operateOutputs(slice []OutType, operation func(m *outList, k OutType)) {
 	if len(slice) == 0 {
 		return
 	}
@@ -216,12 +216,12 @@ func (l *logger) operateOutputs(slice []OutType, operation func(m *outList, k Ou
 }
 
 // Returns whether a specified output is added to logger
-func (l *logger) IsOutputExists(out OutType) bool {
+func (l *Logger) IsOutputExists(out OutType) bool {
 	return l.outputs[out] != nil
 }
 
 // Returns whether an output is enabled for writes (false if output doesn't exist)
-func (l *logger) IsOutputEnabled(out OutType) bool {
+func (l *Logger) IsOutputEnabled(out OutType) bool {
 	c := l.outputs[out]
 	if c != nil {
 		return c.enabled
@@ -234,7 +234,7 @@ func (l *logger) IsOutputEnabled(out OutType) bool {
 // outputs mutex.
 
 // Sets the prefix map (per-level prefix) and the delimiter for a specific output.
-func (l *logger) SetOutputLevelPrefix(output OutType, prefixmap *LevelMap, delimiter string) *logger {
+func (l *Logger) SetOutputLevelPrefix(output OutType, prefixmap *LevelMap, delimiter string) *Logger {
 	return l.changeOutSettings(output, func(c *OutContext) {
 		c.prefixmap = prefixmap
 		c.delimiter = []byte(delimiter)
@@ -242,7 +242,7 @@ func (l *logger) SetOutputLevelPrefix(output OutType, prefixmap *LevelMap, delim
 }
 
 // Assigns a color map (ANSI fragments) used when building messages for the specified output.
-func (l *logger) SetOutputLevelColor(output OutType, colormap *LevelMap) *logger {
+func (l *Logger) SetOutputLevelColor(output OutType, colormap *LevelMap) *Logger {
 	return l.changeOutSettings(output, func(c *OutContext) {
 		c.colormap = colormap
 	})
@@ -254,7 +254,7 @@ func (l *logger) SetOutputLevelColor(output OutType, colormap *LevelMap) *logger
 // More about time format layouts at https://pkg.go.dev/time#Layout. Example:
 //
 //	"2006-01-02 15:04:05"
-func (l *logger) SetOutputTimeFormat(output OutType, format, delimiter string) *logger {
+func (l *Logger) SetOutputTimeFormat(output OutType, format, delimiter string) *Logger {
 	return l.changeOutSettings(output, func(c *OutContext) {
 		c.timefmt = format + delimiter
 	})
@@ -262,7 +262,7 @@ func (l *logger) SetOutputTimeFormat(output OutType, format, delimiter string) *
 
 // Enables printing a level id (like "[3]") after time and before any oter info and decorations.
 // May be useful for debugging or log filtering.
-func (l *logger) ShowOutputLevelCode(output OutType) *logger {
+func (l *Logger) ShowOutputLevelCode(output OutType) *Logger {
 	return l.changeOutSettings(output, func(c *OutContext) {
 		c.showlvlid = true
 	})
@@ -271,14 +271,14 @@ func (l *logger) ShowOutputLevelCode(output OutType) *logger {
 // Sets the minimal level to log for the specified output.
 //
 // Used in addition to logger and client minimal levels.
-func (l *logger) SetOutputMinLevel(output OutType, minlevel LogLevel) *logger {
+func (l *Logger) SetOutputMinLevel(output OutType, minlevel LogLevel) *Logger {
 	return l.changeOutSettings(output, func(c *OutContext) {
 		c.minlevel = normLevel(minlevel)
 	})
 }
 
 // Safely modifies a context with a given function for the given output (if it exists).
-func (l *logger) changeOutSettings(output OutType, f func(*OutContext)) *logger {
+func (l *Logger) changeOutSettings(output OutType, f func(*OutContext)) *Logger {
 	if l.outputs[output] != nil {
 		l.sync.outsMtx.Lock()
 		defer l.sync.outsMtx.Unlock()
@@ -293,7 +293,7 @@ func (l *logger) changeOutSettings(output OutType, f func(*OutContext)) *logger 
 // timestamp (t) that represents the push time and an error if the message could
 // not be enqueued. Catches any panics (including writing to the closed channel)
 // and converts them to errors.
-func (l *logger) pushMessage(msg *logMessage) (t time.Time, err error) {
+func (l *Logger) pushMessage(msg *logMessage) (t time.Time, err error) {
 	l.sync.statMtx.RLock()
 	defer func() {
 		if r := recover(); r != nil {
@@ -374,7 +374,7 @@ Special thanks to the CoPilot for this mess of letters.
 
 // Constructs a new logClient associated with this logger. The client carries its own
 // minimal level, an initial name and can be disabled separately from other clients.
-func (l *logger) NewClientWithLevel(name string, minlevel LogLevel) *LogClient {
+func (l *Logger) NewClientWithLevel(name string, minlevel LogLevel) *LogClient {
 	client := &LogClient{
 		logger:   l,
 		name:     []byte(name),
@@ -389,17 +389,17 @@ func (l *logger) NewClientWithLevel(name string, minlevel LogLevel) *LogClient {
 //
 // Client properties can be changed with logger SetClient...() setters but not by
 // client functions to centralize and secure log management.
-func (l *logger) NewClient(name string) *LogClient {
+func (l *Logger) NewClient(name string) *LogClient {
 	return l.NewClientWithLevel(name, LVL_UNKNOWN)
 }
 
 // Validates that logger client belongs to this logger
-func (l *logger) IsOwnClient(lc *LogClient) bool {
+func (l *Logger) IsOwnClient(lc *LogClient) bool {
 	return lc != nil && lc.logger == l
 }
 
 // Validates that logger client belongs to this logger with extended error text
-func (l *logger) checkClient(lc *LogClient) (err error) {
+func (l *Logger) checkClient(lc *LogClient) (err error) {
 	if lc == nil {
 		err = errors.New(_ERROR_MESSAGE_CLIENT_IS_NIL)
 	} else if lc.logger != l {
@@ -409,7 +409,7 @@ func (l *logger) checkClient(lc *LogClient) (err error) {
 }
 
 // Toggles whether a client's log messages should be proceeded
-func (l *logger) SetClientEnabled(lc *LogClient, enabled bool) error {
+func (l *Logger) SetClientEnabled(lc *LogClient, enabled bool) error {
 	err := l.checkClient(lc)
 	if err == nil {
 		lc.enabled = enabled
@@ -419,13 +419,13 @@ func (l *logger) SetClientEnabled(lc *LogClient, enabled bool) error {
 
 // Enqueues a client minimum level change as a command message so the change takes
 // effect only after previously queued messages are processed
-func (l *logger) SetClientMinLevel(lc *LogClient, minlevel LogLevel) (t time.Time, err error) {
+func (l *Logger) SetClientMinLevel(lc *LogClient, minlevel LogLevel) (t time.Time, err error) {
 	return l.runClientCommand(lc, _CMD_CLIENT_SET_LEVEL, []byte{byte(minlevel)})
 }
 
 // Enqueues a client name change  as a command message so the change takes
 // effect only after previously queued messages are processed
-func (l *logger) SetClientName(lc *LogClient, newname string) (time.Time, error) {
+func (l *Logger) SetClientName(lc *LogClient, newname string) (time.Time, error) {
 	return l.runClientCommand(lc, _CMD_CLIENT_SET_NAME, []byte(newname))
 }
 
@@ -433,7 +433,7 @@ func (l *logger) SetClientName(lc *LogClient, newname string) (time.Time, error)
 //
 // Commands are processed in-order by the background worker so changes will not affect
 // messages queued (logged) before this command.
-func (l *logger) runClientCommand(lc *LogClient, cmd cmdType, data []byte) (t time.Time, err error) {
+func (l *Logger) runClientCommand(lc *LogClient, cmd cmdType, data []byte) (t time.Time, err error) {
 	// Change client settings by commands (sent messages has to be printed with previous settings)
 	err = l.checkClient(lc)
 	if err == nil {

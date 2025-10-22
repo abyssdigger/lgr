@@ -47,10 +47,10 @@ type logMessage struct {
 	annex   basetype   // extra byte-sized value (level or command id)
 }
 
-// logger is the central state holder. It contains synchronization primitives,
+// Logger is the central state holder. It contains synchronization primitives,
 // the outputs map, fallback writer, message channel and buffer used while
 // formatting writes.
-type logger struct {
+type Logger struct {
 	sync struct {
 		statMtx sync.RWMutex   // guards state and channel checks
 		fbckMtx sync.RWMutex   // guards access to fallback writer
@@ -71,7 +71,7 @@ type logger struct {
 // LogClient represents a producer of log messages. Clients are lightweight
 // and intended to be created by logger.NewClient.
 type LogClient struct {
-	logger   *logger  // owning logger
+	logger   *Logger  // owning logger
 	name     []byte   // client name used in output (raw bytes for efficiency)
 	minLevel LogLevel // per-client minimal level to accept
 	curLevel LogLevel // current level used by Write / fmt.Fprintf helpers

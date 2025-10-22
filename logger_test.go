@@ -23,7 +23,7 @@ const errorStr = "error generated in writer"
 // proceedeng so use with care).
 //
 // Use for test purposes only.
-func (l *logger) getContext(output OutType) *OutContext {
+func (l *Logger) getContext(output OutType) *OutContext {
 	return l.outputs[output]
 }
 
@@ -99,7 +99,7 @@ func Test_logClient_JustVisualTest(t *testing.T) {
 }
 
 func Test_logger_AddOutputs(t *testing.T) {
-	var l *logger
+	var l *Logger
 	t.Run("add_1_16", func(t *testing.T) {
 		for i := range 16 {
 			outs := []OutType{}
@@ -414,7 +414,7 @@ func TestInitWithParams(t *testing.T) {
 
 func TestInit(t *testing.T) {
 	t.Run("explicit_params", func(t *testing.T) {
-		var l *logger
+		var l *Logger
 		out1 := os.Stdout
 		assert.NotPanics(t, func() {
 			l = Init(out1)
@@ -428,7 +428,7 @@ func TestInit(t *testing.T) {
 		assert.Equal(t, os.Stderr, l.fallbck, "wrong fallback")
 	})
 	t.Run("nil_output", func(t *testing.T) {
-		var l *logger
+		var l *Logger
 		assert.NotPanics(t, func() {
 			l = Init(nil)
 			l.Start(0)
@@ -439,7 +439,7 @@ func TestInit(t *testing.T) {
 		assert.Equal(t, os.Stderr, l.fallbck, "wrong fallback")
 	})
 	t.Run("empty_output", func(t *testing.T) {
-		var l *logger
+		var l *Logger
 		assert.NotPanics(t, func() {
 			l = Init([]OutType{}...)
 			l.Start(0)
@@ -453,7 +453,7 @@ func TestInit(t *testing.T) {
 
 func TestInitAndStart(t *testing.T) {
 	t.Run("explicit_params", func(t *testing.T) {
-		var l *logger
+		var l *Logger
 		out1 := os.Stdout
 		assert.NotPanics(t, func() {
 			l = InitAndStart(DEFAULT_MSG_BUFF, out1)
@@ -470,7 +470,7 @@ func TestInitAndStart(t *testing.T) {
 		assert.Equal(t, _STATE_STOPPED, l.state, "wrong stopped state")
 	})
 	t.Run("min_params", func(t *testing.T) {
-		var l *logger
+		var l *Logger
 		assert.NotPanics(t, func() {
 			l = InitAndStart(-1)
 		})
@@ -620,7 +620,7 @@ func Test_logger_IsOutputExists(t *testing.T) {
 }
 
 func Test_logger_NewClient(t *testing.T) {
-	var l *logger
+	var l *Logger
 	var lc *LogClient
 	prep := func(lvl LogLevel, name string) {
 		l = Init()
@@ -816,7 +816,7 @@ func Test_logger_SetClientMinLevel(t *testing.T) {
 func Test_logClient_Log_with_err(t *testing.T) {
 	var msg *logMessage
 	var err error
-	var l *logger
+	var l *Logger
 	var lc *LogClient
 	prep := func(f func(), loglevel LogLevel, msglevel LogLevel, ferr *FakeWriter, outs ...OutType) (*logMessage, error) {
 		l = Init()
@@ -992,13 +992,13 @@ func Test_logClient_Log(t *testing.T) {
 		name string
 		prfx string
 		sufx string
-		fn   func(*logger)
+		fn   func(*Logger)
 	}{
 		// prfx and sufx are cumulative!!!
 		{"time", "", "", nil},
-		{"level_index", "[" + strconv.Itoa(int(level)) + "]" + delim2, "", func(l *logger) { l.ShowOutputLevelCode(out1) }},
-		{"level_name", LevelShortNames[level] + delim2, "", func(l *logger) { l.SetOutputLevelPrefix(out1, LevelShortNames, delim2) }},
-		{"color_map", ANSI_COL_PRFX + LevelColorOnBlackMap[level] + ANSI_COL_SUFX, ANSI_COL_RESET, func(l *logger) { l.SetOutputLevelColor(out1, LevelColorOnBlackMap) }},
+		{"level_index", "[" + strconv.Itoa(int(level)) + "]" + delim2, "", func(l *Logger) { l.ShowOutputLevelCode(out1) }},
+		{"level_name", LevelShortNames[level] + delim2, "", func(l *Logger) { l.SetOutputLevelPrefix(out1, LevelShortNames, delim2) }},
+		{"color_map", ANSI_COL_PRFX + LevelColorOnBlackMap[level] + ANSI_COL_SUFX, ANSI_COL_RESET, func(l *Logger) { l.SetOutputLevelColor(out1, LevelColorOnBlackMap) }},
 	}
 	prefix := ""
 	suffix := "\n"
