@@ -1,4 +1,3 @@
-// Docs are based on CoPilot (GPT-5 mini) generation
 package lgr
 
 // never use fmt in threads!
@@ -10,16 +9,16 @@ import (
 )
 
 /*
-Docs are based on CoPilot (GPT-5 mini) generation
-proceed.go
-
 Contains the background processing loop and the logic that converts queued
 messages into writes to configured outputs. Responsible for:
- - running the processor goroutine that reads from the logger channel
- - dispatching command messages (client setting changes)
- - formatting textual messages according to per-output settings and writing
-   to outputs
- - error reporting to the fallback writer
+  - running the processor goroutine that reads from the logger channel
+  - dispatching command messages (client setting changes)
+  - formatting textual messages according to per-output settings and writing
+    to outputs
+  - error reporting to the fallback writer
+
+Historically, docs are based on CoPilot/GPT5mini generation, but little
+remains of the original delusion.
 */
 
 // Helper to write a message to the fallback writer as a single-line.
@@ -53,7 +52,7 @@ func (l *logger) setState(newstate lgrState) {
 // recover triggers a fallback write and ensures logger is moved to stopped state
 // before returning.
 func (l *logger) procced() {
-	l.msgbuf = bytes.NewBuffer(make([]byte, _DEFAULT_OUT_BUFF))
+	l.msgbuf = bytes.NewBuffer(make([]byte, DEFAULT_OUT_BUFF))
 	defer func() {
 		if r := recover(); r != nil {
 			l.fbckWriteln("panic proceeding log" + panicDesc(r))
@@ -121,12 +120,12 @@ func (l *logger) proceedCmd(msg *logMessage) (err error) {
 		switch cmdType(msg.annex) {
 		case _CMD_CLIENT_SET_LEVEL:
 			// Expect at least one byte with the new level
-			errstr = clientChangeFromCmdMsg(msg, func(lc *logClient, data []byte) {
+			errstr = clientChangeFromCmdMsg(msg, func(lc *LogClient, data []byte) {
 				lc.minLevel = normLevel(LogLevel(data[0]))
 			})
 		case _CMD_CLIENT_SET_NAME:
 			// Replace client name with provided bytes
-			errstr = clientChangeFromCmdMsg(msg, func(lc *logClient, data []byte) {
+			errstr = clientChangeFromCmdMsg(msg, func(lc *LogClient, data []byte) {
 				lc.name = data
 			})
 		case _CMD_DUMMY, _CMD_CLIENT_DUMMY:
@@ -168,7 +167,7 @@ func (l *logger) logTextToOutputs(msg *logMessage) {
 //
 // Return values: panicked (true if a panic occurred while writing) and err for any
 // write-related error. The deferred recover converts the panic into an error.
-func (l *logger) logTextData(output outType, msg *logMessage) (panicked bool, err error) {
+func (l *logger) logTextData(output OutType, msg *logMessage) (panicked bool, err error) {
 	// only returns of named result values can be changed by defer:
 	// https://bytegoblin.io/blog/golang-magic-modify-return-value-using-deferred-function
 	panicked = false
@@ -207,7 +206,7 @@ func (l *logger) handleLogWriteError(errormsg string) {
 
 // Constructs and buffers the textual representation for a message using the provided
 // output context.
-func buildTextMessage(outBuffer *bytes.Buffer, msg *logMessage, context *outContext) *bytes.Buffer {
+func buildTextMessage(outBuffer *bytes.Buffer, msg *logMessage, context *OutContext) *bytes.Buffer {
 	outBuffer.Reset()
 	if msg != nil {
 		level := normLevel(LogLevel(msg.annex))
@@ -224,6 +223,7 @@ func buildTextMessage(outBuffer *bytes.Buffer, msg *logMessage, context *outCont
 				} else {
 					outBuffer.Write([]byte("[" + strconv.FormatUint(uint64(level), 10) + "]"))
 				}
+				outBuffer.Write(context.delimiter)
 			}
 			// optional prefix map + delimiter
 			if context.prefixmap != nil {
@@ -254,5 +254,3 @@ func buildTextMessage(outBuffer *bytes.Buffer, msg *logMessage, context *outCont
 	}
 	return outBuffer
 }
-
-/****************************** Client part ******************************/

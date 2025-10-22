@@ -1,7 +1,4 @@
-// Docs are based on CoPilot (GPT-5 mini) generation
-package lgr
-
-/*********************************************************************************
+/*
 io.Writer interface implementation
 
 The logClient implements io.Writer so it can be used with fmt.Fprintf and
@@ -15,9 +12,11 @@ This allows patterns like:
 But remember that fmt is not thread-safe!
 */
 
+package lgr
+
 // Lvl sets the client's current level (used by Write/fmt.Fprintf) and returns
 // the same client for convenient chaining.
-func (lc *logClient) Lvl(level LogLevel) *logClient {
+func (lc *LogClient) Lvl(level LogLevel) *LogClient {
 	lc.curLevel = normLevel(level)
 	return lc
 }
@@ -30,7 +29,7 @@ func (lc *logClient) Lvl(level LogLevel) *logClient {
 //	fmt.Fprintf(client.Lvl(LVL_WARN), "disk low: %d%%", percent)
 //
 // but remember that fmt.Fprint*() functions are not thrtead-safe!
-func (lc *logClient) Write(p []byte) (n int, err error) {
+func (lc *LogClient) Write(p []byte) (n int, err error) {
 	if p == nil {
 		return 0, nil
 	}

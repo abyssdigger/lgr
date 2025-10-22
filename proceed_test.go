@@ -28,7 +28,7 @@ func TestLogger_proceedMsg(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			out1 := &FakeWriter{}
 			l := InitWithParams(LVL_TRACE, nil, out1)
-			l.msgbuf = bytes.NewBuffer(make([]byte, _DEFAULT_OUT_BUFF))
+			l.msgbuf = bytes.NewBuffer(make([]byte, DEFAULT_OUT_BUFF))
 			gotErr := l.proceedMsg(&tt.msg)
 			if tt.wantErr {
 				assert.Error(t, gotErr, "no expected error")
@@ -116,21 +116,21 @@ func TestLogger_logData(t *testing.T) {
 		wantErr bool
 		name    string // description of this test case
 		// Named input parameters for target function.
-		output outType
+		output OutType
 		data   []byte
 	}{
 		{false, false, "valid_output", foutput, []byte(testlogstr)},
 		{false, false, "empty_msg", foutput, []byte{}},
 		{false, false, "nil_msg", foutput, nil},
-		{false, true, "error_output", outType(&ErrorWriter{}), []byte(testlogstr)},
-		{true, true, "panic_output", outType(&PanicWriter{}), []byte(testlogstr)},
+		{false, true, "error_output", OutType(&ErrorWriter{}), []byte(testlogstr)},
+		{true, true, "panic_output", OutType(&PanicWriter{}), []byte(testlogstr)},
 		{true, true, "nil_output", nil, []byte(testlogstr)},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			foutput.Clear()
 			l := Init()
-			l.msgbuf = bytes.NewBuffer(make([]byte, _DEFAULT_OUT_BUFF))
+			l.msgbuf = bytes.NewBuffer(make([]byte, DEFAULT_OUT_BUFF))
 			gotPnc, gotErr := l.logTextData(tt.output, &logMessage{msgtype: 99, msgdata: tt.data})
 			assert.True(t, !tt.wantPnc || gotPnc, "did not panic when expected")
 			assert.True(t, !tt.wantErr || gotErr != nil, "no error on expected failure")
@@ -184,7 +184,7 @@ func TestLogger_logTextToOutputs(t *testing.T) {
 	t.Run("one_out", func(t *testing.T) {
 		out1.Clear()
 		l := InitWithParams(LVL_UNKNOWN, nil, out1)
-		l.msgbuf = bytes.NewBuffer(make([]byte, _DEFAULT_OUT_BUFF))
+		l.msgbuf = bytes.NewBuffer(make([]byte, DEFAULT_OUT_BUFF))
 		l.logTextToOutputs(msg)
 		assert.Equal(t, string(msg.msgdata)+"\n", out1.String())
 	})
@@ -192,7 +192,7 @@ func TestLogger_logTextToOutputs(t *testing.T) {
 		out1.Clear()
 		out2.Clear()
 		l := InitWithParams(LVL_UNKNOWN, nil, out1, out2)
-		l.msgbuf = bytes.NewBuffer(make([]byte, _DEFAULT_OUT_BUFF))
+		l.msgbuf = bytes.NewBuffer(make([]byte, DEFAULT_OUT_BUFF))
 		l.logTextToOutputs(msg)
 		assert.Equal(t, string(msg.msgdata)+"\n", out1.String())
 		assert.Equal(t, string(msg.msgdata)+"\n", out2.String())
@@ -202,14 +202,14 @@ func TestLogger_logTextToOutputs(t *testing.T) {
 		out2.Clear()
 		l := InitWithParams(LVL_UNKNOWN, nil, out1, out2)
 		l.outputs[out2].minlevel = LVL_TRACE
-		l.msgbuf = bytes.NewBuffer(make([]byte, _DEFAULT_OUT_BUFF))
+		l.msgbuf = bytes.NewBuffer(make([]byte, DEFAULT_OUT_BUFF))
 		l.logTextToOutputs(msg)
 		assert.Equal(t, string(msg.msgdata)+"\n", out1.String())
 		assert.Empty(t, out2.buffer, "unexpected write to outpus with lower level: ["+out2.String()+"], len="+strconv.Itoa(len(out2.buffer)))
 	})
 	t.Run("no_outputs_no_fallback", func(t *testing.T) {
 		l := InitWithParams(LVL_UNKNOWN, nil)
-		l.msgbuf = bytes.NewBuffer(make([]byte, _DEFAULT_OUT_BUFF))
+		l.msgbuf = bytes.NewBuffer(make([]byte, DEFAULT_OUT_BUFF))
 		assert.NotPanics(t, func() {
 			l.logTextToOutputs(msg)
 		}, "Panic on write to nil outputs and nil fallback")
@@ -233,7 +233,7 @@ func TestLogger_logTextToOutputs(t *testing.T) {
 		out2.Clear()
 		ferr.Clear()
 		l := InitWithParams(LVL_UNKNOWN, ferr, out1, &PanicWriter{}, out2)
-		l.msgbuf = bytes.NewBuffer(make([]byte, _DEFAULT_OUT_BUFF))
+		l.msgbuf = bytes.NewBuffer(make([]byte, DEFAULT_OUT_BUFF))
 		l.logTextToOutputs(msg)
 		assert.Equal(t, string(msg.msgdata)+"\n", out1.String())
 		assert.Equal(t, string(msg.msgdata)+"\n", out2.String())
@@ -244,7 +244,7 @@ func TestLogger_logTextToOutputs(t *testing.T) {
 		out2.Clear()
 		ferr.Clear()
 		l := InitWithParams(LVL_UNKNOWN, ferr, out1, &ErrorWriter{}, out2)
-		l.msgbuf = bytes.NewBuffer(make([]byte, _DEFAULT_OUT_BUFF))
+		l.msgbuf = bytes.NewBuffer(make([]byte, DEFAULT_OUT_BUFF))
 		l.logTextToOutputs(msg)
 		assert.Equal(t, string(msg.msgdata)+"\n", out1.String())
 		assert.Equal(t, string(msg.msgdata)+"\n", out2.String())
@@ -255,7 +255,7 @@ func TestLogger_logTextToOutputs(t *testing.T) {
 		out2.Clear()
 		ferr.Clear()
 		l := InitWithParams(LVL_UNKNOWN, ferr, out1, &ErrorWriter{}, &PanicWriter{}, out2)
-		l.msgbuf = bytes.NewBuffer(make([]byte, _DEFAULT_OUT_BUFF))
+		l.msgbuf = bytes.NewBuffer(make([]byte, DEFAULT_OUT_BUFF))
 		l.logTextToOutputs(msg)
 		assert.Equal(t, string(msg.msgdata)+"\n", out1.String())
 		assert.Equal(t, string(msg.msgdata)+"\n", out2.String())
@@ -266,7 +266,7 @@ func TestLogger_logTextToOutputs(t *testing.T) {
 		out1.Clear()
 		out2.Clear()
 		l := InitWithParams(LVL_UNKNOWN, nil, out1, &ErrorWriter{}, &PanicWriter{}, out2)
-		l.msgbuf = bytes.NewBuffer(make([]byte, _DEFAULT_OUT_BUFF))
+		l.msgbuf = bytes.NewBuffer(make([]byte, DEFAULT_OUT_BUFF))
 		assert.NotPanics(t, func() {
 			l.logTextToOutputs(msg)
 		}, "Panic on write to nil fallback")
@@ -278,7 +278,7 @@ func TestLogger_logTextToOutputs(t *testing.T) {
 		out2.Clear()
 		ferr.Clear()
 		l := InitWithParams(LVL_UNKNOWN, ferr, out1, out2)
-		l.msgbuf = bytes.NewBuffer(make([]byte, _DEFAULT_OUT_BUFF))
+		l.msgbuf = bytes.NewBuffer(make([]byte, DEFAULT_OUT_BUFF))
 		l.outputs[out1].enabled = false
 		l.outputs[out2].enabled = false
 		l.logTextToOutputs(msg)
@@ -291,7 +291,7 @@ func TestLogger_logTextToOutputs(t *testing.T) {
 		out2.Clear()
 		ferr.Clear()
 		l := InitWithParams(LVL_UNKNOWN, ferr, out1, out2)
-		l.msgbuf = bytes.NewBuffer(make([]byte, _DEFAULT_OUT_BUFF))
+		l.msgbuf = bytes.NewBuffer(make([]byte, DEFAULT_OUT_BUFF))
 		l.outputs[out1].enabled = true
 		l.outputs[out2].enabled = false
 		l.logTextToOutputs(msg)
@@ -303,7 +303,7 @@ func TestLogger_logTextToOutputs(t *testing.T) {
 
 func Test_buildTextMessage1(t *testing.T) {
 	ti := time.Now()
-	outBuffer := bytes.NewBuffer(make([]byte, _DEFAULT_OUT_BUFF))
+	outBuffer := bytes.NewBuffer(make([]byte, DEFAULT_OUT_BUFF))
 	msg := &logMessage{
 		pushed:  ti,
 		msgdata: testbytes,
@@ -311,13 +311,13 @@ func Test_buildTextMessage1(t *testing.T) {
 		annex:   basetype(LVL_UNMASKABLE),
 	}
 	t.Run("with_time", func(t *testing.T) {
-		ctx := &outContext{}
+		ctx := &OutContext{}
 		ctx.timefmt = time.RFC1123
 		buff := buildTextMessage(outBuffer, msg, ctx)
 		assert.Regexp(t, "^"+ti.Format(ctx.timefmt)+".*", buff.String())
 	})
 	t.Run("with_time", func(t *testing.T) {
-		context := &outContext{}
+		context := &OutContext{}
 		context.showlvlid = true
 		buff := buildTextMessage(outBuffer, msg, context)
 		assert.Regexp(t, "^"+ti.Format(context.timefmt)+".*", buff.String())
@@ -325,10 +325,10 @@ func Test_buildTextMessage1(t *testing.T) {
 }
 
 func Test_buildTextMessage(t *testing.T) {
-	outBuffer := bytes.NewBuffer(make([]byte, _DEFAULT_OUT_BUFF))
+	outBuffer := bytes.NewBuffer(make([]byte, DEFAULT_OUT_BUFF))
 	lcName := "Logger client name [" + testlogstr + "]"
 	l := Init()
-	lc := l.NewClient(lcName, LVL_UNKNOWN)
+	lc := l.NewClientWithLevel(lcName, LVL_UNKNOWN)
 	ti := time.Now()
 	dm := " -+\033F:" + testlogstr + "\n"
 	lvl := LVL_UNMASKABLE
@@ -341,66 +341,66 @@ func Test_buildTextMessage(t *testing.T) {
 	tests := []struct {
 		name    string // description of this test case
 		result  string
-		context *outContext
-		client  *logClient
+		context *OutContext
+		client  *LogClient
 	}{
 		{"only_message",
 			testlogstr,
-			&outContext{},
+			&OutContext{},
 			nil,
 		},
 		{"time",
 			ti.Format(time.RFC1123) + testlogstr,
-			&outContext{timefmt: time.RFC1123},
+			&OutContext{timefmt: time.RFC1123},
 			nil,
 		},
 		{"time_with_delim",
 			ti.Format(time.RFC1123) + testlogstr,
-			&outContext{timefmt: time.RFC1123, delimiter: []byte(dm)},
+			&OutContext{timefmt: time.RFC1123, delimiter: []byte(dm)},
 			nil,
 		},
 		{"lvl_id",
 			"[" + strconv.Itoa(int(lvl)) + "]" + testlogstr,
-			&outContext{showlvlid: true},
+			&OutContext{showlvlid: true},
 			nil,
 		},
 		{"short_prefix",
 			LevelShortNames[lvl] + testlogstr,
-			&outContext{prefixmap: LevelShortNames},
+			&OutContext{prefixmap: LevelShortNames},
 			nil,
 		},
 		{"short_prefix_with_delim",
 			LevelShortNames[lvl] + dm + testlogstr,
-			&outContext{prefixmap: LevelShortNames, delimiter: []byte(dm)},
+			&OutContext{prefixmap: LevelShortNames, delimiter: []byte(dm)},
 			nil,
 		},
 		{"colors",
 			ANSI_COL_PRFX + LevelColorOnBlackMap[lvl] + ANSI_COL_SUFX + testlogstr + ANSI_COL_RESET,
-			&outContext{colormap: LevelColorOnBlackMap},
+			&OutContext{colormap: LevelColorOnBlackMap},
 			nil,
 		},
 		{"colors_with_delim",
 			ANSI_COL_PRFX + LevelColorOnBlackMap[lvl] + ANSI_COL_SUFX + testlogstr + ANSI_COL_RESET,
-			&outContext{colormap: LevelColorOnBlackMap, delimiter: []byte(dm)},
+			&OutContext{colormap: LevelColorOnBlackMap, delimiter: []byte(dm)},
 			nil,
 		},
 		{"client_name",
 			lcName + testlogstr,
-			&outContext{},
+			&OutContext{},
 			lc,
 		},
 		{"client_name_with_delim",
 			lcName + dm + testlogstr,
-			&outContext{delimiter: []byte(dm)},
+			&OutContext{delimiter: []byte(dm)},
 			lc,
 		},
 		{"all_together",
 			"" +
 				ti.Format(time.RFC1123) +
-				"[" + strconv.Itoa(int(lvl)) + "]" +
+				"[" + strconv.Itoa(int(lvl)) + "]" + dm +
 				LevelShortNames[lvl] + dm +
 				ANSI_COL_PRFX + LevelColorOnBlackMap[lvl] + ANSI_COL_SUFX + testlogstr + ANSI_COL_RESET,
-			&outContext{
+			&OutContext{
 				timefmt:   time.RFC1123,
 				showlvlid: true,
 				prefixmap: LevelShortNames,
@@ -432,11 +432,11 @@ func Test_logger_proceedCmd(t *testing.T) {
 	ferr := &FakeWriter{}
 	l1 := Init()
 	l1.SetFallback(ferr)
-	lc1 := l1.NewClient(testname, LVL_UNKNOWN)
+	lc1 := l1.NewClientWithLevel(testname, LVL_UNKNOWN)
 	tests := []struct {
 		name    string // description of this test case
 		cmd     cmdType
-		lc      *logClient
+		lc      *LogClient
 		data    []byte
 		wantErr string
 	}{

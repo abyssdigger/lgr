@@ -12,7 +12,7 @@ import (
 
 func Test_logClient_Lvl(t *testing.T) {
 	t.Run("for_255", func(t *testing.T) {
-		var lc logClient
+		var lc LogClient
 		for level := range LogLevel(255) {
 			assert.Equal(t, normLevel(level), lc.Lvl(level).curLevel, fmt.Sprintf("Fail on %d", level))
 		}
@@ -20,12 +20,12 @@ func Test_logClient_Lvl(t *testing.T) {
 }
 
 func Test_logClient_Write(t *testing.T) {
-	outBuffer := bytes.NewBuffer(make([]byte, _DEFAULT_OUT_BUFF))
+	outBuffer := bytes.NewBuffer(make([]byte, DEFAULT_OUT_BUFF))
 	ferr := &FakeWriter{}
 	out1 := &FakeWriter{}
 	l := Init()
 	l.SetFallback(ferr)
-	lc := l.NewClient(testlogstr, LVL_UNKNOWN)
+	lc := l.NewClientWithLevel(testlogstr, LVL_UNKNOWN)
 
 	prep := func() {
 		outBuffer.Reset()
