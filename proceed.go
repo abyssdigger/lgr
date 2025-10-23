@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"errors"
 	"strconv"
+	"time"
 )
 
 /*
@@ -24,7 +25,11 @@ remains of the original delusion.
 // Helper to write a message to the fallback writer as a single-line.
 //
 // Used to report internal errors encountered in the background goroutine.
+
+const _FALLBACK_TIME_FORMAT = "[2006-01-02 15:04:05] "
+
 func (l *Logger) fbckWriteln(s string) {
+	s = time.Now().Format(_FALLBACK_TIME_FORMAT) + s
 	l.fallbck.Write([]byte(s + "\n"))
 }
 
@@ -200,7 +205,7 @@ func (l *Logger) handleLogWriteError(errormsg string) {
 	l.sync.fbckMtx.RLock()
 	defer l.sync.fbckMtx.RUnlock()
 	if l.fallbck != nil {
-		l.fallbck.Write([]byte(errormsg + "\n"))
+		l.fbckWriteln(errormsg)
 	}
 }
 

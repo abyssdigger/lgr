@@ -3,7 +3,9 @@ package lgr
 import (
 	"bytes"
 	"fmt"
+	"math/rand"
 	"strconv"
+	"sync"
 	"testing"
 	"time"
 
@@ -158,7 +160,7 @@ func TestLogger_handleLogWriteError(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			l.handleLogWriteError(tt.emsg)
-			assert.Equal(t, tt.emsg+"\n", foutput.String(), "written data mismatch")
+			assert.Equal(t, tt.emsg+"\n", foutput.String()[len(_FALLBACK_TIME_FORMAT):], "written data mismatch")
 			foutput.Clear()
 		})
 	}
@@ -478,4 +480,90 @@ func Test_logger_proceedCmd(t *testing.T) {
 		})
 		assert.Contains(t, ferr.String(), "nil command", "wrong error text")
 	})
+}
+
+func Test_Parallel_Multithreading(t *testing.T) {
+	const (
+		maxdatalen = 32
+		datacount  = 100
+		goroutines = 100
+	)
+	type logWorker struct {
+		clnt *LogClient
+		task [datacount]int
+		curr int
+	}
+	var logData [datacount][]byte
+	var logWrks [goroutines]logWorker
+	var wg sync.WaitGroup
+	start := make(chan int)
+	// Gen random data and count total output size
+	namesize := 0
+	for i := goroutines; i > 0; i /= 10 {
+		namesize += 1
+	}
+	plantotal := 0
+	for i := range datacount {
+		datalen := rand.Intn(maxdatalen) + 1                         // no zero-length
+		plantotal += namesize + len(DEFAULT_DELIMITER) + datalen + 1 // <name> + <delimiter> + <data> + '\n'
+		logData[i] = make([]byte, datalen)
+		for j := range datalen - 1 { // last char has to be zero for further seeking
+			c := byte(rand.Intn(255) + 1) // zeroes are for data seeking in output only
+			logData[i][j] = c
+		}
+	}
+	plantotal *= goroutines
+
+	ferr := &FakeWriter{}
+	out1 := &FakeWriter{}
+	out1.buffer = make([]byte, 0, plantotal) // total bytes will be logged by each goroutine
+
+	l1 := Init(out1)
+	l1.SetFallback(ferr)
+	// Create clients for each goroutine and random order in goroutines tasks
+	for i := range goroutines {
+		logWrks[i].clnt = l1.NewClientWithLevel(fmt.Sprintf("%0"+strconv.Itoa(namesize)+"d", i+1), LVL_UNKNOWN)
+		for j, c := range rand.Perm(datacount) {
+			logWrks[i].task[j] = c
+		}
+	}
+	// Goroutines
+	workerGrt := func(n int) {
+		defer wg.Done()
+		for range start { // wait start
+		}
+		for i := range datacount {
+			data := logData[logWrks[n].task[i]]            // get data by index from current task
+			logWrks[n].clnt.LogBytes(LVL_UNMASKABLE, data) // short log with std delimiter (name:text)
+		}
+	}
+	for i := range goroutines {
+		go workerGrt(i)
+		wg.Add(1)
+	}
+	l1.Start(datacount)
+	close(start) // unhold all goroutines
+	wg.Wait()
+	l1.StopAndWait()
+	realtotal := len(out1.buffer)
+	assert.Equal(t, plantotal, realtotal, "wrong output total length")
+	assert.Empty(t, ferr.buffer, "unexpected fallback errors writes")
+	//fmt.Println(out1.String())
+
+	/*pos := 0
+	var name string
+	var wrkId int
+	var wrk logWorker
+	var err error
+	var pass
+	for pos < realtotal {
+		name = string(out1.buffer[pos : pos+namesize])
+		wrkId, err = strconv.Atoi(name)
+		if err != nil {
+			break
+		}
+		wrk  = logWrks[wrkId]
+		pass = wrk.task[wrk.curr]
+	}
+	assert.NoError(t, err, "error parsing output")*/
 }
