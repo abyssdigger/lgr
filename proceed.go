@@ -211,7 +211,7 @@ func (l *Logger) handleLogWriteError(errormsg string) {
 
 // Constructs and buffers the textual representation for a message using the provided
 // output context.
-func buildTextMessage(outBuffer *bytes.Buffer, msg *logMessage, context *OutContext) *bytes.Buffer {
+func buildTextMessage(outBuffer *bytes.Buffer, msg *logMessage, context *outContext) *bytes.Buffer {
 	outBuffer.Reset()
 	if msg != nil {
 		level := normLevel(LogLevel(msg.annex))

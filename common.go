@@ -5,7 +5,7 @@ Defines the core data types used by the logger:
   - basetype and a small set of typed aliases for clarity
   - logMessage: internal representation of queued items
   - logClient: lightweight client handle that callers obtain to write logs
-  - OutContext: per-output settings used when formatting messages
+  - outContext: per-output settings used when formatting messages
   - logger: the central state object that coordinates message queuing,
     output management and the processing goroutine.
 
@@ -26,15 +26,17 @@ import (
 	"time"
 )
 
-type basetype byte     // basetype is the underlying byte-sized representation used for enums
+type basetype byte // basetype is the underlying byte-sized representation used for enums
+
 type LogLevel basetype // Logger levels  (alias for byte)
 type lgrState basetype
 type msgType basetype
 type cmdType basetype
+
 type OutType io.Writer // Logger outputs (alias for io.Writer)
 
 // outList maps output writers to their per-output context (settings).
-type outList map[OutType]*OutContext
+type outList map[OutType]*outContext
 
 // logMessage is the unit enqueued into the logger channel. It may represent
 // a textual log entry (MSG_LOG_TEXT) or a command (MSG_COMMAND). The annex
@@ -82,8 +84,8 @@ type LogClient struct {
 // instead of a map avoids allocations and simplifies indexing by LogLevel.
 type LevelMap [_LVL_MAX_for_checks_only]string
 
-// OutContext holds formatting and filtering options for a specific output.
-type OutContext struct {
+// outContext holds formatting and filtering options for a specific output.
+type outContext struct {
 	colormap  *LevelMap // logLevel-associated ANSI terminal color fragments
 	prefixmap *LevelMap // per-level textual prefix
 	delimiter []byte    // separator after prefix/client name (usually ":")
@@ -137,7 +139,7 @@ const (
 
 const (
 	// Message types that can be enqueued.
-	_MSG_FORBIDDEN msgType = iota // only for testing panic in proceed
+	_MSG_FORBIDDEN msgType = iota // only to test panic recovery in proceed()
 	_MSG_LOG_TEXT
 	_MSG_COMMAND
 	_MSG_MAX_for_checks_only
@@ -155,7 +157,7 @@ const (
 
 /////////////////////////////////////////////////////////////////////////////////////////
 
-// Predefined color map for ANSI terminal (for OutContext.colormap)
+// Predefined color map for ANSI terminal (for outContext.colormap)
 var LevelShortNames = &LevelMap{
 	"???", //LVL_UNKNOWN
 	"TRC", //LVL_TRACE
@@ -167,7 +169,7 @@ var LevelShortNames = &LevelMap{
 	"!!!", //LVL_UNMASKABLE
 }
 
-// Predefined log level full names map (for OutContext.prefixmap)
+// Predefined log level full names map (for outContext.prefixmap)
 var LevelFullNames = &LevelMap{
 	"UNKNOWN",    //LVL_UNKNOWN
 	"TRACE",      //LVL_TRACE
@@ -179,7 +181,7 @@ var LevelFullNames = &LevelMap{
 	"UNMASKABLE", //LVL_UNMASKABLE
 }
 
-// Predefined log level short names map (for OutContext.prefixmap)
+// Predefined log level short names map (for outContext.prefixmap)
 var LevelColorOnBlackMap = &LevelMap{
 	"9;90",     //LVL_UNKNOWN
 	"2;90",     //LVL_TRACE

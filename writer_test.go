@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func Test_logClient_Lvl(t *testing.T) {
+func Test_LogClient_Lvl(t *testing.T) {
 	t.Run("for_255", func(t *testing.T) {
 		var lc LogClient
 		for level := range LogLevel(255) {
@@ -19,7 +19,7 @@ func Test_logClient_Lvl(t *testing.T) {
 	})
 }
 
-func Test_logClient_Write(t *testing.T) {
+func Test_LogClient_Write(t *testing.T) {
 	outBuffer := bytes.NewBuffer(make([]byte, DEFAULT_OUT_BUFF))
 	ferr := &FakeWriter{}
 	out1 := &FakeWriter{}

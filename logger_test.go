@@ -18,12 +18,12 @@ const testlogstr = "Test log АБВ こんにちは, 世界`'\u00e9\"\\\x5A\254\
 const panicStr = "panic generated in writer"
 const errorStr = "error generated in writer"
 
-// Returns the OutContext for a given output writer by pointer so it can be changed directly
+// Returns the outContext for a given output writer by pointer so it can be changed directly
 // outside logger functions (such changes can have thread-unsafe side effects in queue
 // proceedeng so use with care).
 //
 // Use for test purposes only.
-func (l *Logger) getContext(output OutType) *OutContext {
+func (l *Logger) getContext(output OutType) *outContext {
 	return l.outputs[output]
 }
 
@@ -56,7 +56,7 @@ func (f *FakeWriter) Write(b []byte) (int, error) {
 func (f *FakeWriter) String() string { return string(f.buffer) }
 func (f *FakeWriter) Clear()         { f.buffer = f.buffer[:0] }
 
-func Test_logClient_JustVisualTest(t *testing.T) {
+func Test_JustVisualTest(t *testing.T) {
 	var logger = InitWithParams(LVL_UNKNOWN, os.Stderr, nil) //...Default()
 	var alter1 = *os.Stdout
 	var alter2 = *os.Stdout
@@ -98,7 +98,7 @@ func Test_logClient_JustVisualTest(t *testing.T) {
 	}
 }
 
-func Test_logger_AddOutputs(t *testing.T) {
+func Test_Logger_AddOutputs(t *testing.T) {
 	var l *Logger
 	t.Run("add_1_16", func(t *testing.T) {
 		for i := range 16 {
@@ -151,7 +151,7 @@ func Test_logger_AddOutputs(t *testing.T) {
 	})
 }
 
-func Test_logger_ClearOutputs(t *testing.T) {
+func Test_Logger_ClearOutputs(t *testing.T) {
 	tests := []struct {
 		name    string // description of this test case
 		outputs []OutType
@@ -173,7 +173,7 @@ func Test_logger_ClearOutputs(t *testing.T) {
 	}
 }
 
-func Test_logger_RemoveOutputs(t *testing.T) {
+func Test_Logger_RemoveOutputs(t *testing.T) {
 	tests := []struct {
 		wants   int
 		name    string // description of this test case
@@ -211,7 +211,7 @@ func Test_logger_RemoveOutputs(t *testing.T) {
 	}
 }
 
-func Test_logger_SetFallback(t *testing.T) {
+func Test_Logger_SetFallback(t *testing.T) {
 	tests := []struct {
 		name     string // description of this test case
 		fallback OutType
@@ -232,7 +232,7 @@ func Test_logger_SetFallback(t *testing.T) {
 	}
 }
 
-func Test_logger_IsActive(t *testing.T) {
+func Test_Logger_IsActive(t *testing.T) {
 	l := Init()
 	rng := 256
 	t.Run("one_from_255", func(t *testing.T) {
@@ -243,7 +243,7 @@ func Test_logger_IsActive(t *testing.T) {
 	})
 }
 
-func Test_logger_SetLogLevel(t *testing.T) {
+func Test_Logger_SetLogLevel(t *testing.T) {
 	l := Init()
 	rng := 255
 	t.Run("only_valid_from_255", func(t *testing.T) {
@@ -259,7 +259,7 @@ func Test_logger_SetLogLevel(t *testing.T) {
 	})
 }
 
-func Test_logger_setState(t *testing.T) {
+func Test_Logger_setState(t *testing.T) {
 	l := Init()
 	rng := 255
 	t.Run("only_valid_from_255", func(t *testing.T) {
@@ -274,7 +274,7 @@ func Test_logger_setState(t *testing.T) {
 	})
 }
 
-func Test_logger_Start(t *testing.T) {
+func Test_Logger_Start(t *testing.T) {
 	t.Run("normal", func(t *testing.T) {
 		l := Init()
 		err := l.Start(0)
@@ -300,7 +300,7 @@ func Test_logger_Start(t *testing.T) {
 		l.StopAndWait()
 	})
 }
-func Test_logger_Stop(t *testing.T) {
+func Test_Logger_Stop(t *testing.T) {
 	t.Run("normal", func(t *testing.T) {
 		l := Init()
 		err := l.Start(0)
@@ -322,7 +322,7 @@ func Test_logger_Stop(t *testing.T) {
 	})
 }
 
-func Test_logger_Wait(t *testing.T) {
+func Test_Logger_Wait(t *testing.T) {
 	t.Run("normal", func(t *testing.T) {
 		l := Init()
 		err := l.Start(0)
@@ -360,7 +360,7 @@ func Test_logger_Wait(t *testing.T) {
 	})
 }
 
-func Test_logger_StopAndWait(t *testing.T) {
+func Test_Logger_StopAndWait(t *testing.T) {
 	t.Run("normal", func(t *testing.T) {
 		l := Init()
 		err := l.Start(0)
@@ -383,7 +383,7 @@ func Test_logger_StopAndWait(t *testing.T) {
 	})
 }
 
-func TestInitWithParams(t *testing.T) {
+func Test_Logger_InitWithParams(t *testing.T) {
 	t.Run("normal", func(t *testing.T) {
 		fallbck := io.Discard
 		out1 := io.Discard
@@ -412,7 +412,7 @@ func TestInitWithParams(t *testing.T) {
 	})
 }
 
-func TestInit(t *testing.T) {
+func Test_Logger_Init(t *testing.T) {
 	t.Run("explicit_params", func(t *testing.T) {
 		var l *Logger
 		out1 := os.Stdout
@@ -451,7 +451,7 @@ func TestInit(t *testing.T) {
 	})
 }
 
-func TestInitAndStart(t *testing.T) {
+func Test_Logger_InitAndStart(t *testing.T) {
 	t.Run("explicit_params", func(t *testing.T) {
 		var l *Logger
 		out1 := os.Stdout
@@ -486,7 +486,7 @@ func TestInitAndStart(t *testing.T) {
 	})
 }
 
-func Test_logger_SetLevelPrefix(t *testing.T) {
+func Test_Logger_SetLevelPrefix(t *testing.T) {
 	out1 := &FakeWriter{}
 	l := Init(out1)
 	tests := []struct {
@@ -509,7 +509,7 @@ func Test_logger_SetLevelPrefix(t *testing.T) {
 	}
 }
 
-func Test_logger_SetLevelColor(t *testing.T) {
+func Test_Logger_SetLevelColor(t *testing.T) {
 	out1 := &FakeWriter{}
 	l := Init(out1)
 	tests := []struct {
@@ -529,7 +529,7 @@ func Test_logger_SetLevelColor(t *testing.T) {
 	}
 }
 
-func Test_logger_SetMinLevel(t *testing.T) {
+func Test_Logger_SetMinLevel(t *testing.T) {
 	out1 := &FakeWriter{}
 	l := Init(out1)
 	tests := []struct {
@@ -549,7 +549,7 @@ func Test_logger_SetMinLevel(t *testing.T) {
 	}
 }
 
-func Test_logger_SetTimeFormat(t *testing.T) {
+func Test_Logger_SetTimeFormat(t *testing.T) {
 	out1 := &FakeWriter{}
 	l := Init(out1)
 	tests := []struct {
@@ -570,7 +570,7 @@ func Test_logger_SetTimeFormat(t *testing.T) {
 	}
 }
 
-func Test_logger_ShowLevelCode(t *testing.T) {
+func Test_Logger_ShowLevelCode(t *testing.T) {
 	out1 := &FakeWriter{}
 	l := Init(out1)
 	tests := []struct {
@@ -588,7 +588,7 @@ func Test_logger_ShowLevelCode(t *testing.T) {
 	}
 }
 
-func Test_logger_IsOutputEnabled(t *testing.T) {
+func Test_Logger_IsOutputEnabled(t *testing.T) {
 	l := Init(io.Discard)
 	t.Run("20_times", func(t *testing.T) {
 		b := false
@@ -604,7 +604,7 @@ func Test_logger_IsOutputEnabled(t *testing.T) {
 	})
 }
 
-func Test_logger_IsOutputExists(t *testing.T) {
+func Test_Logger_IsOutputExists(t *testing.T) {
 	w0 := &FakeWriter{}
 	w1 := &FakeWriter{}
 	l := Init(io.Discard, os.Stdout, w0)
@@ -619,7 +619,7 @@ func Test_logger_IsOutputExists(t *testing.T) {
 	})
 }
 
-func Test_logger_NewClient(t *testing.T) {
+func Test_Logger_NewClient(t *testing.T) {
 	var l *Logger
 	var lc *LogClient
 	prep := func(lvl LogLevel, name string) {
@@ -638,7 +638,7 @@ func Test_logger_NewClient(t *testing.T) {
 	})
 }
 
-func Test_logger_pushMessage(t *testing.T) {
+func Test_Logger_pushMessage(t *testing.T) {
 	ferr := &FakeWriter{}
 	out1 := &FakeWriter{}
 	textmsg := &logMessage{msgtype: _MSG_LOG_TEXT, msgdata: testbytes, annex: basetype(LVL_UNMASKABLE)}
@@ -690,7 +690,7 @@ func Test_logger_pushMessage(t *testing.T) {
 	}
 }
 
-func Test_logger_runClientCommand(t *testing.T) {
+func Test_Logger_runClientCommand(t *testing.T) {
 	ferr1 := &FakeWriter{}
 	ferr2 := &FakeWriter{}
 	out1 := &FakeWriter{}
@@ -757,7 +757,7 @@ func Test_logger_runClientCommand(t *testing.T) {
 	}
 }
 
-func Test_logger_SetClientMinLevel(t *testing.T) {
+func Test_Logger_SetClientMinLevel(t *testing.T) {
 	ferr1 := &FakeWriter{}
 	ferr2 := &FakeWriter{}
 	out1 := &FakeWriter{}
@@ -812,8 +812,143 @@ func Test_logger_SetClientMinLevel(t *testing.T) {
 		})
 	}
 }
+func Test_LogClient_LogBytes_with_err(t *testing.T) {
+	var msg *logMessage
+	var err error
+	var l *Logger
+	var lc *LogClient
+	prep := func(logdata []byte, loglevel LogLevel, msglevel LogLevel, ferr *FakeWriter, outs ...OutType) (*logMessage, error) {
+		l = Init()
+		l.SetFallback(OutType(ferr)).ClearOutputs().AddOutputs(outs...)
+		lc = l.NewClientWithLevel("[Testing client name]", LVL_UNKNOWN)
+		l.Start(0)
+		l.level = loglevel
+		t, e := lc.LogBytes_with_err(msglevel, logdata)
+		l.StopAndWait()
+		if e == nil {
+			msg := makeTextMessage(lc, loglevel, logdata)
+			msg.pushed = t
+			return msg, nil // message for comparison
+		}
+		return nil, e
+	}
+	t.Run("unrecovered_panic", func(t *testing.T) {
+		ferr := &FakeWriter{}
+		out1 := &FakeWriter{}
+		out2 := &FakeWriter{}
+		assert.PanicsWithError(t, _ERROR_MESSAGE_TEST_PANIC_TEXT, func() {
+			msg, err = prep(testbytes, _LVL_MAX_for_checks_only+1, LVL_DEBUG, ferr, out1, out2)
+		}, "No panic on unmasked panic")
+		assert.NoError(t, err, "unexpected error")
+		assert.Nil(t, msg, "message not nil")
+		assert.Empty(t, out1.buffer, "data written to output 1")
+		assert.Empty(t, out2.buffer, "data written to output 2")
+		assert.Empty(t, ferr.buffer, "data written to fallback")
+	})
+	t.Run("level_masked", func(t *testing.T) {
+		ferr := &FakeWriter{}
+		out1 := &FakeWriter{}
+		for l := range _LVL_MAX_for_checks_only {
+			assert.NotPanics(t, func() {
+				msg, err = prep(testbytes, _LVL_MAX_for_checks_only, l, ferr, out1)
+				assert.NoError(t, err, "unexpected error")
+			}, "Panic on write")
+			assert.Empty(t, ferr.buffer, "data written to fallback")
+			assert.Empty(t, out1.buffer, "data written to output on log with level lower than set")
+		}
+	})
+	t.Run("level_out_of_range", func(t *testing.T) {
+		ferr := &FakeWriter{}
+		out1 := &FakeWriter{}
+		for l := _LVL_MAX_for_checks_only; l < _LVL_MAX_for_checks_only+100; l++ {
+			assert.NotPanics(t, func() {
+				msg, err = prep(testbytes, _LVL_MAX_for_checks_only, l, ferr, out1)
+				assert.EqualError(t, err, _ERROR_MESSAGE_LOG_LEVEL_RANGE)
+			}, "Panic on write")
+			assert.Empty(t, ferr.buffer, "data written to fallback")
+			assert.Empty(t, out1.buffer, "data written to output on log with level lower than set")
+		}
+	})
+	t.Run("empty_message", func(t *testing.T) {
+		ferr := &FakeWriter{}
+		out1 := &FakeWriter{}
+		assert.NotPanics(t, func() {
+			msg, err = prep([]byte{}, LVL_WARN, LVL_WARN, ferr, out1)
+		}, "Panic on write")
+		assert.NoError(t, err, "error on empty message")
+		assert.Zero(t, msg.pushed, "non-zero pushed time returned on empty message")
+		assert.Empty(t, ferr.buffer, "data written to fallback")
+		assert.Empty(t, out1.buffer, "data written to output on empty message")
+	})
+	t.Run("level_logged", func(t *testing.T) {
+		ferr := &FakeWriter{}
+		out1 := &FakeWriter{}
+		outBuffer := bytes.NewBuffer(make([]byte, DEFAULT_OUT_BUFF))
+		assert.NotPanics(t, func() {
+			msg, err = prep(testbytes, LVL_WARN, LVL_WARN, ferr, out1)
+			assert.NoError(t, err, "unexpected error")
+		}, "Panic on write")
+		assert.Empty(t, ferr.buffer, "data written to fallback")
+		assert.NotEmpty(t, out1.buffer, "no data written to output on log with level higher than set")
+		assert.Equal(t, buildTextMessage(outBuffer, msg, l.getContext(out1)).Bytes(), out1.buffer)
+	})
+	t.Run("nil_output", func(t *testing.T) {
+		ferr := &FakeWriter{}
+		assert.NotPanics(t, func() {
+			msg, err = prep(nil, LVL_INFO, LVL_WARN, ferr)
+			assert.NoError(t, err, "unexpected error")
+		}, "Panic on write")
+		assert.Empty(t, ferr.buffer, "data written to fallback")
+	})
+	t.Run("no_outputs", func(t *testing.T) {
+		ferr := &FakeWriter{}
+		msg, err = prep(testbytes, LVL_INFO, LVL_WARN, ferr, []OutType{}...)
+		assert.Empty(t, ferr.buffer, "data written to fallback on write to nil outputs")
+	})
+	t.Run("2_outputs", func(t *testing.T) {
+		ferr := &FakeWriter{}
+		out1 := &FakeWriter{}
+		out2 := &FakeWriter{}
+		outBuffer := bytes.NewBuffer(make([]byte, DEFAULT_OUT_BUFF))
+		assert.NotPanics(t, func() {
+			msg, err = prep(testbytes, LVL_INFO, LVL_WARN, ferr, out1, out2)
+			assert.NoError(t, err, "unexpected error")
+		}, "Panic on write")
+		assert.Equal(t, buildTextMessage(outBuffer, msg, l.getContext(out1)).Bytes(), out1.buffer)
+		assert.Equal(t, buildTextMessage(outBuffer, msg, l.getContext(out2)).Bytes(), out2.buffer)
+		assert.Empty(t, ferr.buffer, "data written to fallback")
+	})
+	t.Run("1_error_1_panic_outs", func(t *testing.T) {
+		ferr := &FakeWriter{}
+		out1 := &FakeWriter{}
+		out2 := &FakeWriter{}
+		outBuffer := bytes.NewBuffer(make([]byte, DEFAULT_OUT_BUFF))
+		assert.NotPanics(t, func() {
+			msg, err = prep(testbytes, LVL_INFO, LVL_WARN, ferr, out1, &ErrorWriter{}, out2, &PanicWriter{})
+			assert.NoError(t, err, "unexpected error")
+		}, "Panic on write")
+		assert.Equal(t, buildTextMessage(outBuffer, msg, l.getContext(out1)).Bytes(), out1.buffer)
+		assert.Equal(t, buildTextMessage(outBuffer, msg, l.getContext(out2)).Bytes(), out2.buffer)
+		assert.Contains(t, ferr.String(), panicStr+"`\n")
+		assert.Contains(t, ferr.String(), errorStr+"\n")
+	})
+}
+func Test_LogClient_LogBytes(t *testing.T) {
+	t.Run("log_with_error_and_nil_logger", func(t *testing.T) {
+		lc := &LogClient{}
+		assert.Zero(t, lc.LogBytes(LVL_UNMASKABLE, testbytes), "non-zero push time on error")
+	})
+	t.Run("log_with_error_and_real_logger", func(t *testing.T) {
+		ferr := &FakeWriter{}
+		l := InitWithParams(LVL_UNKNOWN, ferr)
+		lc := l.NewClient("test")
+		tm := lc.LogBytes(_LVL_MAX_for_checks_only+10, testbytes)
+		assert.Zero(t, tm, "non-zero push time on error")
+		assert.Equal(t, _ERROR_MESSAGE_LOG_LEVEL_RANGE+"\n", string(ferr.buffer[len(_FALLBACK_TIME_FORMAT):]))
+	})
+}
 
-func Test_logClient_Log_with_err(t *testing.T) {
+func Test_LogClient_Log_with_err(t *testing.T) {
 	var msg *logMessage
 	var err error
 	var l *Logger
@@ -822,16 +957,9 @@ func Test_logClient_Log_with_err(t *testing.T) {
 		l = Init()
 		l.SetFallback(OutType(ferr)).ClearOutputs().AddOutputs(outs...)
 		lc = l.NewClientWithLevel("[Testing client name]", LVL_UNKNOWN)
-		if f == nil {
-			l.Start(0)
-		} else {
-			f()
-		}
+		f()
 		l.level = loglevel
 		t, e := lc.Log_with_err(msglevel, testlogstr)
-		if f == nil {
-			l.StopAndWait()
-		}
 		if e == nil {
 			msg := makeTextMessage(lc, loglevel, []byte(testlogstr))
 			msg.pushed = t
@@ -839,6 +967,22 @@ func Test_logClient_Log_with_err(t *testing.T) {
 		}
 		return nil, e
 	}
+	t.Run("disabled_client", func(t *testing.T) {
+		ferr := &FakeWriter{}
+		out1 := &FakeWriter{}
+		assert.NotPanics(t, func() {
+			msg, err = prep(func() {
+				l.SetClientEnabled(lc, false)
+				l.Start(0)
+				close(l.channel)
+			}, LVL_WARN, LVL_WARN, ferr, out1)
+		}, "Panic on write")
+		l.channel = make(chan logMessage)
+		l.StopAndWait()
+		assert.NoError(t, err, "error on log to disabled client")
+		assert.Empty(t, ferr.buffer, "data written to fallback")
+		assert.Empty(t, out1.buffer, "data written to output")
+	})
 	t.Run("panic_on_closed_channel", func(t *testing.T) {
 		ferr := &FakeWriter{}
 		out1 := &FakeWriter{}
@@ -866,20 +1010,6 @@ func Test_logClient_Log_with_err(t *testing.T) {
 		assert.Empty(t, ferr.buffer, "data written to fallback")
 		assert.Empty(t, out1.buffer, "data written to output")
 	})
-	t.Run("unrecovered_panic", func(t *testing.T) {
-		ferr := &FakeWriter{}
-		out1 := &FakeWriter{}
-		out2 := &FakeWriter{}
-		assert.Panics(t, func() {
-			err = nil
-			msg, err = prep(nil, _LVL_MAX_for_checks_only+1, LVL_DEBUG, ferr, out1, out2)
-		}, "No panic on unmasked panic")
-		assert.NoError(t, err, "unexpected error")
-		assert.Nil(t, msg, "message not nil")
-		assert.Empty(t, out1.buffer, "data written to output 1")
-		assert.Empty(t, out2.buffer, "data written to output 2")
-		assert.Empty(t, ferr.buffer, "data written to fallback")
-	})
 	t.Run("error_on_nil_channel", func(t *testing.T) {
 		ferr := &FakeWriter{}
 		out1 := &FakeWriter{}
@@ -905,78 +1035,12 @@ func Test_logClient_Log_with_err(t *testing.T) {
 		}, "Panic on write")
 		assert.Error(t, err, "no error on log to stopped logger")
 		assert.Nil(t, msg, "message not nil")
-		assert.ErrorContains(t, err, "logger is nil", "Wrong error on log to stopped logger")
+		assert.EqualError(t, err, _ERROR_MESSAGE_LOGGER_IS_NIL, "Wrong error on log to stopped logger")
 		assert.Empty(t, ferr.buffer, "data written to fallback")
 		assert.Empty(t, out1.buffer, "data written to output")
 	})
-	t.Run("nil_output", func(t *testing.T) {
-		ferr := &FakeWriter{}
-		assert.NotPanics(t, func() {
-			msg, err = prep(nil, LVL_INFO, LVL_WARN, ferr)
-			assert.NoError(t, err, "unexpected error")
-		}, "Panic on write")
-		assert.Empty(t, ferr.buffer, "data written to fallback")
-	})
-	t.Run("no_outputs", func(t *testing.T) {
-		ferr := &FakeWriter{}
-		msg, err = prep(nil, LVL_INFO, LVL_WARN, ferr, []OutType{}...)
-		assert.Empty(t, ferr.buffer, "data written to fallback on write to nil outputs")
-	})
-	t.Run("2_outputs", func(t *testing.T) {
-		ferr := &FakeWriter{}
-		out1 := &FakeWriter{}
-		out2 := &FakeWriter{}
-		outBuffer := bytes.NewBuffer(make([]byte, DEFAULT_OUT_BUFF))
-		assert.NotPanics(t, func() {
-			msg, err = prep(nil, LVL_INFO, LVL_WARN, ferr, out1, out2)
-			assert.NoError(t, err, "unexpected error")
-		}, "Panic on write")
-		assert.Equal(t, buildTextMessage(outBuffer, msg, l.getContext(out1)).Bytes(), out1.buffer)
-		assert.Equal(t, buildTextMessage(outBuffer, msg, l.getContext(out2)).Bytes(), out2.buffer)
-		assert.Empty(t, ferr.buffer, "data written to fallback")
-	})
-	t.Run("1_error_1_panic_outs", func(t *testing.T) {
-		ferr := &FakeWriter{}
-		out1 := &FakeWriter{}
-		out2 := &FakeWriter{}
-		outBuffer := bytes.NewBuffer(make([]byte, DEFAULT_OUT_BUFF))
-		assert.NotPanics(t, func() {
-			err = nil
-			msg, err = prep(nil, LVL_INFO, LVL_WARN, ferr, out1, &ErrorWriter{}, out2, &PanicWriter{})
-			assert.NoError(t, err, "unexpected error")
-		}, "Panic on write")
-		assert.Equal(t, buildTextMessage(outBuffer, msg, l.getContext(out1)).Bytes(), out1.buffer)
-		assert.Equal(t, buildTextMessage(outBuffer, msg, l.getContext(out2)).Bytes(), out2.buffer)
-		assert.Contains(t, ferr.String(), panicStr+"`\n")
-		assert.Contains(t, ferr.String(), errorStr+"\n")
-	})
-	t.Run("level_masked", func(t *testing.T) {
-		ferr := &FakeWriter{}
-		out1 := &FakeWriter{}
-		for l := LVL_UNKNOWN; l < _LVL_MAX_for_checks_only+10; l++ {
-			assert.NotPanics(t, func() {
-				msg, err = prep(nil, _LVL_MAX_for_checks_only, l, ferr, out1)
-				assert.NoError(t, err, "unexpected error")
-			}, "Panic on write")
-			assert.Empty(t, ferr.buffer, "data written to fallback")
-			assert.Empty(t, out1.buffer, "data written to output on log with level lower than set")
-		}
-	})
-	t.Run("level_logged", func(t *testing.T) {
-		ferr := &FakeWriter{}
-		out1 := &FakeWriter{}
-		outBuffer := bytes.NewBuffer(make([]byte, DEFAULT_OUT_BUFF))
-		assert.NotPanics(t, func() {
-			msg, err = prep(nil, LVL_WARN, LVL_WARN, ferr, out1)
-			assert.NoError(t, err, "unexpected error")
-		}, "Panic on write")
-		assert.Empty(t, ferr.buffer, "data written to fallback")
-		assert.NotEmpty(t, out1.buffer, "no data written to output on log with level higher than set")
-		assert.Equal(t, buildTextMessage(outBuffer, msg, l.getContext(out1)).Bytes(), out1.buffer)
-	})
 }
-
-func Test_logClient_Log(t *testing.T) {
+func Test_LogClient_Log(t *testing.T) {
 	const (
 		clname = "[Testing client name]"
 		format = "2006-01-02 15:04:05"
@@ -1024,7 +1088,7 @@ func Test_logClient_Log(t *testing.T) {
 		})
 	}
 }
-func Test_logClient_LogLevels(t *testing.T) {
+func Test_LogClient_LogLevels(t *testing.T) {
 	l := Init()
 	out1 := &FakeWriter{}
 	outBuffer := bytes.NewBuffer(make([]byte, DEFAULT_OUT_BUFF))
@@ -1064,7 +1128,7 @@ func Test_logClient_LogLevels(t *testing.T) {
 		assert.Equal(t, buildTextMessage(outBuffer, msg, l.outputs[out1]).Bytes(), out1.buffer, "wrong output")
 	})
 }
-func Test_logger_SetClientEnabled(t *testing.T) {
+func Test_Logger_SetClientEnabled(t *testing.T) {
 	t.Run("nil_client", func(t *testing.T) {
 		l := Init()
 		err := l.SetClientEnabled(nil, false)
@@ -1109,7 +1173,7 @@ func Test_logger_SetClientEnabled(t *testing.T) {
 		assert.True(t, lc.enabled)
 	})
 }
-func Test_logger_SetClientName(t *testing.T) {
+func Test_Logger_SetClientName(t *testing.T) {
 	ferr1 := &FakeWriter{}
 	ferr2 := &FakeWriter{}
 	out1 := &FakeWriter{}
@@ -1179,4 +1243,24 @@ func Test_logger_SetClientName(t *testing.T) {
 			assert.Empty(t, ferr2.String(), "fallback2 is not empty")
 		})
 	}
+}
+
+func TestLogger_IsOwnClient(t *testing.T) {
+	t.Run("own", func(t *testing.T) {
+		l := Init(nil)
+		lc1 := l.NewClient("")
+		assert.True(t, l.IsOwnClient(lc1))
+	})
+	t.Run("alien", func(t *testing.T) {
+		l := Init(nil)
+		l1 := Init(nil)
+		lc1 := l1.NewClient("")
+		assert.False(t, l.IsOwnClient(lc1))
+	})
+	t.Run("orphan", func(t *testing.T) {
+		l := Init(nil)
+		lc1 := l.NewClient("")
+		lc1.logger = nil
+		assert.False(t, l.IsOwnClient(lc1))
+	})
 }

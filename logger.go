@@ -9,11 +9,8 @@ remains of the original delusion.
 
 import (
 	"errors"
-	"fmt"
 	"io"
-	"maps"
 	"os"
-	"slices"
 	"time"
 )
 
@@ -21,13 +18,16 @@ const (
 	// Error messages used across logger operations (used for testing).
 	_ERROR_MESSAGE_LOGGER_STARTED  = "logger is allready started"
 	_ERROR_MESSAGE_LOGGER_INACTIVE = "logger is not active"
+	_ERROR_MESSAGE_LOGGER_IS_NIL   = "logger is nil"
 	_ERROR_MESSAGE_CHANNEL_IS_NIL  = "logger channel is nil"
 	_ERROR_MESSAGE_LOG_MSG_IS_NIL  = "log message is nil"
-	_ERROR_MESSAGE_CLIENT_IS_ALIEN = "logger client is nil or alien (belongs to another logger or nil)"
+	_ERROR_MESSAGE_LOG_LEVEL_RANGE = "log level is out of range"
+	_ERROR_MESSAGE_CLIENT_IS_ALIEN = "logger client is nil or alien (belongs to another logger or to nil)"
 	_ERROR_MESSAGE_CLIENT_IS_NIL   = "client is nil"
 	_ERROR_MESSAGE_NON_CLIENT_CMD  = "non-client command"
 	_ERROR_MESSAGE_CMD_EMPTY_DATA  = "no data in command message"
 	_ERROR_MESSAGE_CMD_NIL_CLIENT  = "nil client in command message"
+	_ERROR_MESSAGE_TEST_PANIC_TEXT = "panic on forbidden log level (for testing purposes only)"
 	_ERROR_UNKNOWN_PANIC_TEXT      = "[no panic description]"
 )
 
@@ -166,7 +166,7 @@ func (l *Logger) IsActive() bool {
 // will be directed to the updated set of outputs).
 func (l *Logger) AddOutputs(outputs ...OutType) *Logger {
 	l.operateOutputs(outputs, func(m *outList, k OutType) {
-		(*m)[k] = &OutContext{
+		(*m)[k] = &outContext{
 			enabled:   true,
 			delimiter: []byte(DEFAULT_DELIMITER),
 		}
@@ -195,7 +195,11 @@ func (l *Logger) RemoveOutputs(outputs ...OutType) *Logger {
 func (l *Logger) ClearOutputs() *Logger {
 	//The current implementation removes the keys extracted from the map
 	// (helper usage for develop/testing purposes).
-	l.RemoveOutputs(slices.Collect(maps.Keys(l.outputs))...)
+	all_outs := make([]OutType, 0, len(l.outputs))
+	for out := range l.outputs {
+		all_outs = append(all_outs, out)
+	}
+	l.RemoveOutputs(all_outs...)
 	return l
 }
 
@@ -235,7 +239,7 @@ func (l *Logger) IsOutputEnabled(out OutType) bool {
 
 // Sets the prefix map (per-level prefix) and the delimiter for a specific output.
 func (l *Logger) SetOutputLevelPrefix(output OutType, prefixmap *LevelMap, delimiter string) *Logger {
-	return l.changeOutSettings(output, func(c *OutContext) {
+	return l.changeOutSettings(output, func(c *outContext) {
 		c.prefixmap = prefixmap
 		c.delimiter = []byte(delimiter)
 	})
@@ -243,7 +247,7 @@ func (l *Logger) SetOutputLevelPrefix(output OutType, prefixmap *LevelMap, delim
 
 // Assigns a color map (ANSI fragments) used when building messages for the specified output.
 func (l *Logger) SetOutputLevelColor(output OutType, colormap *LevelMap) *Logger {
-	return l.changeOutSettings(output, func(c *OutContext) {
+	return l.changeOutSettings(output, func(c *outContext) {
 		c.colormap = colormap
 	})
 }
@@ -255,7 +259,7 @@ func (l *Logger) SetOutputLevelColor(output OutType, colormap *LevelMap) *Logger
 //
 //	"2006-01-02 15:04:05"
 func (l *Logger) SetOutputTimeFormat(output OutType, format, delimiter string) *Logger {
-	return l.changeOutSettings(output, func(c *OutContext) {
+	return l.changeOutSettings(output, func(c *outContext) {
 		c.timefmt = format + delimiter
 	})
 }
@@ -263,7 +267,7 @@ func (l *Logger) SetOutputTimeFormat(output OutType, format, delimiter string) *
 // Enables printing a level id (like "[3]") after time and before any oter info and decorations.
 // May be useful for debugging or log filtering.
 func (l *Logger) ShowOutputLevelCode(output OutType) *Logger {
-	return l.changeOutSettings(output, func(c *OutContext) {
+	return l.changeOutSettings(output, func(c *outContext) {
 		c.showlvlid = true
 	})
 }
@@ -272,13 +276,13 @@ func (l *Logger) ShowOutputLevelCode(output OutType) *Logger {
 //
 // Used in addition to logger and client minimal levels.
 func (l *Logger) SetOutputMinLevel(output OutType, minlevel LogLevel) *Logger {
-	return l.changeOutSettings(output, func(c *OutContext) {
+	return l.changeOutSettings(output, func(c *outContext) {
 		c.minlevel = normLevel(minlevel)
 	})
 }
 
 // Safely modifies a context with a given function for the given output (if it exists).
-func (l *Logger) changeOutSettings(output OutType, f func(*OutContext)) *Logger {
+func (l *Logger) changeOutSettings(output OutType, f func(*outContext)) *Logger {
 	if l.outputs[output] != nil {
 		l.sync.outsMtx.Lock()
 		defer l.sync.outsMtx.Unlock()
@@ -471,15 +475,20 @@ func clientChangeFromCmdMsg(msg *logMessage, f func(*LogClient, []byte)) (errstr
 // Note: There is a test-only check that panics if logger.level is invalid; in
 // normal code SetMinLevel/normLevel should prevent invalid level values.
 func (lc *LogClient) LogBytes_with_err(level LogLevel, data []byte) (t time.Time, err error) {
-	if lc.logger == nil {
-		return t, fmt.Errorf("logger is nil")
-	}
-	if lc.logger.level > _LVL_MAX_for_checks_only {
+	// Apply global and per-client filtering before enqueuing
+	switch { // conditions NOT to log (instead of long-long if)
+	case lc.logger == nil:
+		err = errors.New(_ERROR_MESSAGE_LOGGER_IS_NIL)
+	case level >= _LVL_MAX_for_checks_only:
+		err = errors.New(_ERROR_MESSAGE_LOG_LEVEL_RANGE)
+	case lc.logger.level > _LVL_MAX_for_checks_only:
 		// For testing purposes only — exercising panic recovery paths.
-		panic(errors.New("panic on forbidden log level (for testing purposes)"))
-	}
-	// Apply per-client and global filtering before enqueuing.
-	if lc.enabled && level >= lc.minLevel && level < _LVL_MAX_for_checks_only && level >= lc.logger.level {
+		panic(errors.New(_ERROR_MESSAGE_TEST_PANIC_TEXT))
+	case !lc.enabled: // logger client is disabled
+	case level < lc.logger.level: // message level is lower than logger-wide minimum level
+	case level < lc.minLevel: // message level is lower than logger client minimum level
+	case len(data) == 0: // we don't like to write empty messages
+	default:
 		t, err = lc.logger.pushMessage(makeTextMessage(lc, level, data))
 	}
 	return t, err
@@ -489,7 +498,7 @@ func (lc *LogClient) LogBytes_with_err(level LogLevel, data []byte) (t time.Time
 // logger fallback. Returns zero time on error.
 func (lc *LogClient) LogBytes(level LogLevel, data []byte) time.Time {
 	t, err := lc.LogBytes_with_err(level, data)
-	if err != nil {
+	if err != nil && lc.logger != nil {
 		// Report the write/enqueue error to the logger fallback. This keeps the
 		// simple Log* API ergonomic while still surfacing failures.
 		lc.logger.handleLogWriteError(err.Error())

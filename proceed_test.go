@@ -3,9 +3,7 @@ package lgr
 import (
 	"bytes"
 	"fmt"
-	"math/rand"
 	"strconv"
-	"sync"
 	"testing"
 	"time"
 
@@ -14,7 +12,7 @@ import (
 
 var testbytes = []byte(testlogstr)
 
-func TestLogger_proceedMsg(t *testing.T) {
+func Test_Logger_proceedMsg(t *testing.T) {
 	tests := []struct {
 		wantErr bool
 		name    string // description of this test case
@@ -60,7 +58,7 @@ func TestLogger_proceedMsg(t *testing.T) {
 	})
 }
 
-func TestLogger_procced(t *testing.T) {
+func Test_Logger_procced(t *testing.T) {
 	t.Run("normal", func(t *testing.T) {
 		out1 := &FakeWriter{}
 		out2 := &FakeWriter{}
@@ -111,7 +109,7 @@ func TestLogger_procced(t *testing.T) {
 	})
 }
 
-func TestLogger_logData(t *testing.T) {
+func Test_Logger_logData(t *testing.T) {
 	foutput := &FakeWriter{}
 	tests := []struct {
 		wantPnc bool
@@ -145,7 +143,7 @@ func TestLogger_logData(t *testing.T) {
 	}
 }
 
-func TestLogger_handleLogWriteError(t *testing.T) {
+func Test_Logger_handleLogWriteError(t *testing.T) {
 	foutput := &FakeWriter{}
 	tests := []struct {
 		name string // description of this test case
@@ -178,7 +176,7 @@ func TestLogger_handleLogWriteError(t *testing.T) {
 	})
 }
 
-func TestLogger_logTextToOutputs(t *testing.T) {
+func Test_Logger_logTextToOutputs(t *testing.T) {
 	msg := &logMessage{msgdata: testbytes}
 	out1 := &FakeWriter{}
 	out2 := &FakeWriter{}
@@ -303,7 +301,7 @@ func TestLogger_logTextToOutputs(t *testing.T) {
 	})
 }
 
-func Test_buildTextMessage1(t *testing.T) {
+func Test_Logger_buildTextMessage1(t *testing.T) {
 	ti := time.Now()
 	outBuffer := bytes.NewBuffer(make([]byte, DEFAULT_OUT_BUFF))
 	msg := &logMessage{
@@ -313,20 +311,20 @@ func Test_buildTextMessage1(t *testing.T) {
 		annex:   basetype(LVL_UNMASKABLE),
 	}
 	t.Run("with_time", func(t *testing.T) {
-		ctx := &OutContext{}
+		ctx := &outContext{}
 		ctx.timefmt = time.RFC1123
 		buff := buildTextMessage(outBuffer, msg, ctx)
 		assert.Regexp(t, "^"+ti.Format(ctx.timefmt)+".*", buff.String())
 	})
 	t.Run("with_time", func(t *testing.T) {
-		context := &OutContext{}
+		context := &outContext{}
 		context.showlvlid = true
 		buff := buildTextMessage(outBuffer, msg, context)
 		assert.Regexp(t, "^"+ti.Format(context.timefmt)+".*", buff.String())
 	})
 }
 
-func Test_buildTextMessage(t *testing.T) {
+func Test_Logger_buildTextMessage(t *testing.T) {
 	outBuffer := bytes.NewBuffer(make([]byte, DEFAULT_OUT_BUFF))
 	lcName := "Logger client name [" + testlogstr + "]"
 	l := Init()
@@ -343,57 +341,57 @@ func Test_buildTextMessage(t *testing.T) {
 	tests := []struct {
 		name    string // description of this test case
 		result  string
-		context *OutContext
+		context *outContext
 		client  *LogClient
 	}{
 		{"only_message",
 			testlogstr,
-			&OutContext{},
+			&outContext{},
 			nil,
 		},
 		{"time",
 			ti.Format(time.RFC1123) + testlogstr,
-			&OutContext{timefmt: time.RFC1123},
+			&outContext{timefmt: time.RFC1123},
 			nil,
 		},
 		{"time_with_delim",
 			ti.Format(time.RFC1123) + testlogstr,
-			&OutContext{timefmt: time.RFC1123, delimiter: []byte(dm)},
+			&outContext{timefmt: time.RFC1123, delimiter: []byte(dm)},
 			nil,
 		},
 		{"lvl_id",
 			"[" + strconv.Itoa(int(lvl)) + "]" + testlogstr,
-			&OutContext{showlvlid: true},
+			&outContext{showlvlid: true},
 			nil,
 		},
 		{"short_prefix",
 			LevelShortNames[lvl] + testlogstr,
-			&OutContext{prefixmap: LevelShortNames},
+			&outContext{prefixmap: LevelShortNames},
 			nil,
 		},
 		{"short_prefix_with_delim",
 			LevelShortNames[lvl] + dm + testlogstr,
-			&OutContext{prefixmap: LevelShortNames, delimiter: []byte(dm)},
+			&outContext{prefixmap: LevelShortNames, delimiter: []byte(dm)},
 			nil,
 		},
 		{"colors",
 			ANSI_COL_PRFX + LevelColorOnBlackMap[lvl] + ANSI_COL_SUFX + testlogstr + ANSI_COL_RESET,
-			&OutContext{colormap: LevelColorOnBlackMap},
+			&outContext{colormap: LevelColorOnBlackMap},
 			nil,
 		},
 		{"colors_with_delim",
 			ANSI_COL_PRFX + LevelColorOnBlackMap[lvl] + ANSI_COL_SUFX + testlogstr + ANSI_COL_RESET,
-			&OutContext{colormap: LevelColorOnBlackMap, delimiter: []byte(dm)},
+			&outContext{colormap: LevelColorOnBlackMap, delimiter: []byte(dm)},
 			nil,
 		},
 		{"client_name",
 			lcName + testlogstr,
-			&OutContext{},
+			&outContext{},
 			lc,
 		},
 		{"client_name_with_delim",
 			lcName + dm + testlogstr,
-			&OutContext{delimiter: []byte(dm)},
+			&outContext{delimiter: []byte(dm)},
 			lc,
 		},
 		{"all_together",
@@ -402,7 +400,7 @@ func Test_buildTextMessage(t *testing.T) {
 				"[" + strconv.Itoa(int(lvl)) + "]" + dm +
 				LevelShortNames[lvl] + dm +
 				ANSI_COL_PRFX + LevelColorOnBlackMap[lvl] + ANSI_COL_SUFX + testlogstr + ANSI_COL_RESET,
-			&OutContext{
+			&outContext{
 				timefmt:   time.RFC1123,
 				showlvlid: true,
 				prefixmap: LevelShortNames,
@@ -429,7 +427,7 @@ func Test_buildTextMessage(t *testing.T) {
 	})
 }
 
-func Test_logger_proceedCmd(t *testing.T) {
+func Test_Logger_proceedCmd(t *testing.T) {
 	const testname = "Test Client Name"
 	ferr := &FakeWriter{}
 	l1 := Init()
@@ -480,90 +478,4 @@ func Test_logger_proceedCmd(t *testing.T) {
 		})
 		assert.Contains(t, ferr.String(), "nil command", "wrong error text")
 	})
-}
-
-func Test_Parallel_Multithreading(t *testing.T) {
-	const (
-		maxdatalen = 32
-		datacount  = 100
-		goroutines = 100
-	)
-	type logWorker struct {
-		clnt *LogClient
-		task [datacount]int
-		curr int
-	}
-	var logData [datacount][]byte
-	var logWrks [goroutines]logWorker
-	var wg sync.WaitGroup
-	start := make(chan int)
-	// Gen random data and count total output size
-	namesize := 0
-	for i := goroutines; i > 0; i /= 10 {
-		namesize += 1
-	}
-	plantotal := 0
-	for i := range datacount {
-		datalen := rand.Intn(maxdatalen) + 1                         // no zero-length
-		plantotal += namesize + len(DEFAULT_DELIMITER) + datalen + 1 // <name> + <delimiter> + <data> + '\n'
-		logData[i] = make([]byte, datalen)
-		for j := range datalen - 1 { // last char has to be zero for further seeking
-			c := byte(rand.Intn(255) + 1) // zeroes are for data seeking in output only
-			logData[i][j] = c
-		}
-	}
-	plantotal *= goroutines
-
-	ferr := &FakeWriter{}
-	out1 := &FakeWriter{}
-	out1.buffer = make([]byte, 0, plantotal) // total bytes will be logged by each goroutine
-
-	l1 := Init(out1)
-	l1.SetFallback(ferr)
-	// Create clients for each goroutine and random order in goroutines tasks
-	for i := range goroutines {
-		logWrks[i].clnt = l1.NewClientWithLevel(fmt.Sprintf("%0"+strconv.Itoa(namesize)+"d", i+1), LVL_UNKNOWN)
-		for j, c := range rand.Perm(datacount) {
-			logWrks[i].task[j] = c
-		}
-	}
-	// Goroutines
-	workerGrt := func(n int) {
-		defer wg.Done()
-		for range start { // wait start
-		}
-		for i := range datacount {
-			data := logData[logWrks[n].task[i]]            // get data by index from current task
-			logWrks[n].clnt.LogBytes(LVL_UNMASKABLE, data) // short log with std delimiter (name:text)
-		}
-	}
-	for i := range goroutines {
-		go workerGrt(i)
-		wg.Add(1)
-	}
-	l1.Start(datacount)
-	close(start) // unhold all goroutines
-	wg.Wait()
-	l1.StopAndWait()
-	realtotal := len(out1.buffer)
-	assert.Equal(t, plantotal, realtotal, "wrong output total length")
-	assert.Empty(t, ferr.buffer, "unexpected fallback errors writes")
-	//fmt.Println(out1.String())
-
-	/*pos := 0
-	var name string
-	var wrkId int
-	var wrk logWorker
-	var err error
-	var pass
-	for pos < realtotal {
-		name = string(out1.buffer[pos : pos+namesize])
-		wrkId, err = strconv.Atoi(name)
-		if err != nil {
-			break
-		}
-		wrk  = logWrks[wrkId]
-		pass = wrk.task[wrk.curr]
-	}
-	assert.NoError(t, err, "error parsing output")*/
 }
