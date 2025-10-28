@@ -70,8 +70,10 @@ type Logger struct {
 	level   LogLevel // global minimal level for the logger
 }
 
-// LogClient represents a producer of log messages. Clients are lightweight
-// and intended to be created by logger.NewClient.
+// LogClient represents a producer of log messages. Each client carries its own
+// minimal level, initial name and can be disabled separately from other clients.
+//
+// Clients are lightweight and intended to be created by logger.NewClient...().
 type LogClient struct {
 	logger   *Logger  // owning logger
 	name     []byte   // client name used in output (raw bytes for efficiency)
@@ -80,8 +82,8 @@ type LogClient struct {
 	enabled  bool     // whether the client may submit messages
 }
 
-// LevelMap is a fixed-size array with one entry per log level. Using an array
-// instead of a map avoids allocations and simplifies indexing by LogLevel.
+// LevelMap is a fixed-size array with one entry per log level. Used for
+// level names and colors.
 type LevelMap [_LVL_MAX_for_checks_only]string
 
 // outContext holds formatting and filtering options for a specific output.

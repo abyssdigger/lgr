@@ -376,8 +376,21 @@ message. All other client Log* methods are just wrappers on it.
 Special thanks to the CoPilot for this mess of letters.
 */
 
-// Constructs a new logClient associated with this logger. The client carries its own
-// minimal level, an initial name and can be disabled separately from other clients.
+// Constructs a new logClient owned by this logger with specified name. Client
+// minimum log level is set to LVL_UNKNOWN (per-client log filtering is off).
+//
+// Client properties can be changed with logger SetClient...() setters but not by
+// client functions to centralize and secure log management.
+func (l *Logger) NewClient(name string) *LogClient {
+	return l.NewClientWithLevel(name, LVL_UNKNOWN)
+}
+
+// Constructs a new logClient owned by this logger with specified name and mimimum log
+// level (per-client log level filtering will reject log messages with log level lower
+// than specified).
+//
+// Client properties can be changed with logger SetClient...() setters but not by
+// client functions to centralize and secure log management.
 func (l *Logger) NewClientWithLevel(name string, minlevel LogLevel) *LogClient {
 	client := &LogClient{
 		logger:   l,
@@ -387,14 +400,6 @@ func (l *Logger) NewClientWithLevel(name string, minlevel LogLevel) *LogClient {
 		enabled:  true,
 	}
 	return client
-}
-
-// Constructs a new logClient owned by this logger with default properties.
-//
-// Client properties can be changed with logger SetClient...() setters but not by
-// client functions to centralize and secure log management.
-func (l *Logger) NewClient(name string) *LogClient {
-	return l.NewClientWithLevel(name, LVL_UNKNOWN)
 }
 
 // Validates that logger client belongs to this logger
@@ -421,13 +426,13 @@ func (l *Logger) SetClientEnabled(lc *LogClient, enabled bool) error {
 	return err
 }
 
-// Enqueues a client minimum level change as a command message so the change takes
+// Enqueues a client min level change as a command message so the change takes
 // effect only after previously queued messages are processed
 func (l *Logger) SetClientMinLevel(lc *LogClient, minlevel LogLevel) (t time.Time, err error) {
 	return l.runClientCommand(lc, _CMD_CLIENT_SET_LEVEL, []byte{byte(minlevel)})
 }
 
-// Enqueues a client name change  as a command message so the change takes
+// Enqueues a client name change as a command message so the change takes
 // effect only after previously queued messages are processed
 func (l *Logger) SetClientName(lc *LogClient, newname string) (time.Time, error) {
 	return l.runClientCommand(lc, _CMD_CLIENT_SET_NAME, []byte(newname))
