@@ -615,3 +615,14 @@ func (lc *LogClient) LogError(s string) time.Time {
 func (lc *LogClient) LogErr(e error) time.Time {
 	return lc.LogBytes(LVL_ERROR, []byte(e.Error()))
 }
+
+// LogFatal logs an error.Value at FATAL level. Returns the time the message was queued
+// or zero value on error. Any error encountered while attempting to enqueue the
+// message will be written as a string to the logger fallback.
+//
+// This is a non-full analog to stanfard log.Fatal(): it calls LogErr() but do NOT exits
+// program: os.Exit(1) makes impossible to gracefully shutdown logger and guarantee than
+// all log messages would be written to log outputs.
+func (lc *LogClient) LogFatal(e error) time.Time {
+	return lc.LogBytes(LVL_FATAL, []byte(e.Error()))
+}
