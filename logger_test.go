@@ -80,7 +80,7 @@ func Test_JustVisualTest(t *testing.T) {
 			for j := range LogLevel(LVL_UNMASKABLE + 10) {
 				_, err := lclient1.Log_with_err(j, "LOG! #"+fmt.Sprint(j+1))
 				if err != nil {
-					fmt.Println("Error1:", err)
+					fmt.Printf("Error on lvl%2d: %s\n", j, err.Error())
 				} else {
 					_, err := lclient2.Log_with_err(j, "ЛОГ? №"+fmt.Sprint(j+1))
 					if err != nil {
