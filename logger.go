@@ -615,3 +615,9 @@ func (lc *LogClient) LogError(s string) time.Time {
 func (lc *LogClient) LogErr(e error) time.Time {
 	return lc.LogBytes(LVL_ERROR, []byte(e.Error()))
 }
+
+// Just because log.Fatal() is in every example.
+func (lc *LogClient) Fatal(e error) {
+	lc.LogErr(e)
+	os.Exit(1)
+}
