@@ -11,6 +11,7 @@ require (
 )
 
 retract (
+	v1.0.2 // Fatal(): use of os.Exit(1) makes it impossible to correctly shutdown logger
 	v0.4.1 // empty messages were processed, LogBytes/Log panicked on orphaned logger client
 	v0.4.0 // main type "logger" was private
 	v0.3.0 // dozen of bugs found, only minor api changes in the comparison with 0.4.*
