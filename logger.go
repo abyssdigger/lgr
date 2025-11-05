@@ -616,7 +616,8 @@ func (lc *LogClient) LogErr(e error) time.Time {
 	return lc.LogBytes(LVL_ERROR, []byte(e.Error()))
 }
 
-// Just because log.Fatal() is in every example.
+// Fatal is a LogErr() followed by a call to os.Exit(1).
+// Just because log.Fatal() is used in every internet example.
 func (lc *LogClient) Fatal(e error) {
 	lc.LogErr(e)
 	os.Exit(1)
