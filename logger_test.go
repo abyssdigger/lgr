@@ -57,9 +57,6 @@ func (f *FakeWriter) Write(b []byte) (int, error) {
 func (f *FakeWriter) String() string { return string(f.buffer) }
 func (f *FakeWriter) Clear()         { f.buffer = f.buffer[:0] }
 
-var globalFerr = &FakeWriter{}
-var globalOutp = &FakeWriter{}
-
 func Test_JustVisualTest(t *testing.T) {
 	var logger = InitWithParams(LVL_UNKNOWN, os.Stderr, nil) //...Default()
 	var alter1 = *os.Stdout
