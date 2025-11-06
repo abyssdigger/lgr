@@ -1,8 +1,9 @@
 # lgr
 
-A lightweight, multi-out logging package for Go.  
-Processes all output logs in a separate goroutine to minimize log caller delay.
-Provides per-client and per-output configuration for timestamp, level names, ansi colors etc.
+A lightweight, multi-out thread-safe* logging package for Go: 
+- Log messages are processed in a separate queue processing goroutine to minimize log caller delay.
+- Correct logging from multiple goroutines (correct per-goroutine log message order and message 
+integrity are tested on 1000+ parallel goroutines with 1000+ different random messages).
 
 ## Features
 
@@ -15,7 +16,7 @@ Provides per-client and per-output configuration for timestamp, level names, ans
 - Error-returning and convenience logging methods
 - Implements `io.Writer` interface for use with `fmt.Fprintf(...)`* etc.
 
-_\*Be careful with **io.Writer** usage: fmt module is not thread-safe, so unpredictable side effects can happen when calling **fmt.Frint\*(client, "message")** from separated goroutines. Good enough for a configurations with one logging goroutine, but for multi-goroutines use thread-safe **client.Log\*()** methods instead._
+_\*Be careful with **io.Writer** usage: fmt module is not thread-safe, so unpredictable side effects can happen when calling **fmt.Frintf(LogClient, "message")** from separated goroutines. Good enough for a configurations with one logging goroutine, but for multi-goroutines use thread-safe **LogClient.Log\*()** methods instead._
 
 ## Basic Usage
 
