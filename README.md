@@ -1,22 +1,23 @@
 # lgr
 
-A lightweight, multi-out thread-safe* logging package for Go: 
+A lightweight, thread-safe and multi-out logging package for Go: 
 - Log messages are processed in a separate queue processing goroutine to minimize log caller delay.
-- Correct logging from multiple goroutines (correct per-goroutine log message order and message 
-integrity are tested on 1000+ parallel goroutines with 1000+ different random messages).
+- Correct logging from multiple parallel-running goroutines\*
+
+_\*Log message integrity and per-goroutine log message order are tested on 10000+ parallel goroutines with 10000+ different random messages (test is included)._
 
 ## Features
 
 - Multiple log levels: TRACE, DEBUG, INFO, WARN, ERROR, FATAL, UNMASKABLE
-- Thread-safe*, buffered logging with background processing for minimal caller i/o waiting
+- Thread-safe**, buffered logging with background processing for minimal caller i/o waiting
 - In-app multiple disengageable logger clients with own names and log level settings
 - Global, per-client and per-output level-based filtering
 - Color and prefix customization per output
 - Fallback writer for logger error reporting
 - Error-returning and convenience logging methods
-- Implements `io.Writer` interface for use with `fmt.Fprintf(...)`* etc.
+- Implements `io.Writer` interface for use with `fmt.Fprintf(...)`\*\* etc.
 
-_\*Be careful with **io.Writer** usage: fmt module is not thread-safe, so unpredictable side effects can happen when calling **fmt.Frintf(LogClient, "message")** from separated goroutines. Good enough for a configurations with one logging goroutine, but for multi-goroutines use thread-safe **LogClient.Log\*()** methods instead._
+_\*\*Be careful with **io.Writer** usage: fmt module is not thread-safe, so unpredictable side effects can happen when calling **fmt.Frintf(LogClient, "message")** from separated goroutines. Good enough for a configurations with one logging goroutine, but for multi-goroutines use thread-safe **LogClient.Log\*()** methods instead._
 
 ## Basic Usage
 
