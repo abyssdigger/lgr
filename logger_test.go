@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"runtime"
 	"strconv"
 	"testing"
@@ -55,6 +56,9 @@ func (f *FakeWriter) Write(b []byte) (int, error) {
 }
 func (f *FakeWriter) String() string { return string(f.buffer) }
 func (f *FakeWriter) Clear()         { f.buffer = f.buffer[:0] }
+
+var globalFerr = &FakeWriter{}
+var globalOutp = &FakeWriter{}
 
 func Test_JustVisualTest(t *testing.T) {
 	var logger = InitWithParams(LVL_UNKNOWN, os.Stderr, nil) //...Default()
@@ -1127,6 +1131,15 @@ func Test_LogClient_LogLevels(t *testing.T) {
 		l.StopAndWait()
 		assert.Equal(t, buildTextMessage(outBuffer, msg, l.outputs[out1]).Bytes(), out1.buffer, "wrong output")
 	})
+	t.Run("fatal_write", func(t *testing.T) {
+		out1.Clear()
+		outBuffer := bytes.NewBuffer(make([]byte, DEFAULT_OUT_BUFF))
+		l.Start(0)
+		msg := makeTextMessage(lc, LVL_FATAL, []byte(testlogstr))
+		msg.pushed = lc.LogFatal(errors.New(testlogstr))
+		l.StopAndWait()
+		assert.Equal(t, buildTextMessage(outBuffer, msg, l.outputs[out1]).Bytes(), out1.buffer, "wrong output")
+	})
 }
 func Test_Logger_SetClientEnabled(t *testing.T) {
 	t.Run("nil_client", func(t *testing.T) {
@@ -1264,3 +1277,72 @@ func TestLogger_IsOwnClient(t *testing.T) {
 		assert.False(t, l.IsOwnClient(lc1))
 	})
 }
+
+func TestLogger_Fatal_Normal(t *testing.T) {
+	if os.Getenv("BE_CRASHER") == "1" {
+		out1 := &FakeWriter{}
+		ferr := &FakeWriter{}
+		lgr := InitWithParams(LVL_UNKNOWN, ferr, out1)
+		lgr.Start(0)
+		Fatal(lgr, errors.New(errorStr))
+		return
+	}
+	cmd := exec.Command(os.Args[0], "-test.run="+"TestLogger_Fatal_Normal")
+	cmd.Env = append(os.Environ(), "BE_CRASHER=1")
+	err := cmd.Run()
+	e, ok := err.(*exec.ExitError)
+	assert.True(t, ok, "not ok on calling err.(*exec.ExitError)")
+	assert.False(t, e.Success(), "normal exit instead of error code")
+	assert.Equal(t, 1, e.ExitCode(), "wrong exit code")
+}
+
+func TestLogger_Fatal_Inactive(t *testing.T) {
+	if os.Getenv("BE_CRASHER") == "1" {
+		out1 := &FakeWriter{}
+		ferr := &FakeWriter{}
+		lgr := InitWithParams(LVL_UNKNOWN, ferr, out1)
+		Fatal(lgr, errors.New(errorStr))
+		return
+	}
+	cmd := exec.Command(os.Args[0], "-test.run="+"TestLogger_Fatal_Inactive")
+	cmd.Env = append(os.Environ(), "BE_CRASHER=1")
+	err := cmd.Run()
+	e, ok := err.(*exec.ExitError)
+	assert.True(t, ok, "not ok on calling err.(*exec.ExitError)")
+	assert.False(t, e.Success(), "normal exit instead of error code")
+	assert.Equal(t, 1, e.ExitCode(), "wrong exit code")
+}
+
+func TestLogger_Fatal_Nils(t *testing.T) {
+	if os.Getenv("BE_CRASHER") == "1" {
+		Fatal(nil, nil)
+		return
+	}
+	cmd := exec.Command(os.Args[0], "-test.run="+"TestLogger_Fatal_Nils")
+	cmd.Env = append(os.Environ(), "BE_CRASHER=1")
+	err := cmd.Run()
+	e, ok := err.(*exec.ExitError)
+	assert.True(t, ok, "not ok on calling err.(*exec.ExitError)")
+	assert.False(t, e.Success(), "normal exit instead of error code")
+	assert.Equal(t, 1, e.ExitCode(), "wrong exit code")
+}
+
+// tests := []struct {
+// tests := []struct {
+// 	name string // description of this test case
+// 	l    *Logger
+// 	o    []OutType
+// 	e    error
+// }{
+// 	{"nils", nil, nil, nil},
+// 	{"normal", lgr, []OutType{out1}, errors.New(errorStr)},
+// }
+// for _, tt := range tests {
+// 	t.Run(tt.name, func(t *testing.T) {
+// 		err := cmd.Run()
+// 		if e, ok := err.(*exec.ExitError); ok && !e.Success() {
+// 			return
+// 		}
+// 		Fatal(tt.l, tt.e)
+// 	})
+// }

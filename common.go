@@ -115,10 +115,11 @@ const (
 
 const (
 	// Default values for short init forms
-	DEFAULT_LOG_LEVEL = LVL_ERROR
-	DEFAULT_MSG_BUFF  = 32  // default buffer size of messages channel
-	DEFAULT_OUT_BUFF  = 256 // initial buffer size for log output text
-	DEFAULT_DELIMITER = ":" // default delimiter between log fields (except time)
+	DEFAULT_LOG_LEVEL  = LVL_ERROR
+	DEFAULT_MSG_BUFF   = 32  // default buffer size of messages channel
+	DEFAULT_OUT_BUFF   = 256 // initial buffer size for log output text
+	DEFAULT_DELIMITER  = ":" // default delimiter between log fields (except time)
+	DEFAULT_FATAL_NAME = "EXIT(1)"
 )
 
 const (

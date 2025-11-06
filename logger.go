@@ -626,3 +626,22 @@ func (lc *LogClient) LogErr(e error) time.Time {
 func (lc *LogClient) LogFatal(e error) time.Time {
 	return lc.LogBytes(LVL_FATAL, []byte(e.Error()))
 }
+
+// Fatal checks if logger exists and is active, if yes - logs an error.Error() at FATAL level under
+// the name of a new logger client (any error encountered
+// while attempting to enqueue the message will be written as a string to the logger fallback) then
+// waits for logger to stop. In any case it finally exits the program with os.Exit(1).
+//
+// This is a non-full analog to stanfard log.Fatal() with an attempt to gracefully shutdown the logger.
+// And it's a bad idea to use it if you have more then one logger in your program.
+func Fatal(l *Logger, e error) {
+	defer os.Exit(1)
+	if l == nil {
+		return
+	}
+	if !l.IsActive() {
+		return
+	}
+	l.NewClient(DEFAULT_FATAL_NAME).LogBytes(LVL_FATAL, []byte(e.Error()))
+	l.StopAndWait()
+}
